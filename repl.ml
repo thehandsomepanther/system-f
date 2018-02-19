@@ -37,3 +37,8 @@ let rec repl () =
         warn ("type error: " ^ msg ^ "\n"));
       repl ()
 
+let true =
+    Parser.expr_of_string "(Lam 5)"
+  = LAME(IntE 5)
+
+let Syntax.AllT Syntax.IntT = Check.tc Env.empty (LAME (IntE 5))

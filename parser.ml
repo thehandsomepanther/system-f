@@ -18,12 +18,18 @@ let stx_err exp got = raise (Bad_syntax(exp, got))
 (* Parses a type from an s-expression. *)
 let rec type_of_sexp = function
   | S.Atom "int" -> IntT
+  | S.Atom n ->
+      (try VarT (Int.of_string n)
+       with Failure _ ->
+         stx_err "type variable reference or 'int'" (S.Atom n))
   | S.List (S.Atom "->" :: args) as t0 ->
       (match List.rev (List.map ~f:type_of_sexp args) with
        | last :: init -> ArrT(List.rev init, last)
        | [] -> stx_err "return type" t0)
   | S.List (S.Atom "tup" :: args) ->
       TupT(List.map ~f:type_of_sexp args)
+  | S.List (S.Atom "all" :: arg :: []) ->
+      AllT (type_of_sexp arg)
   | s -> failwith ("could not parse type: " ^ S.to_string s)
 
 (* Parses a type from a string, via an s-expression. *)
@@ -87,6 +93,10 @@ let rec expr_of_sexp sexp0 =
           FixE(x, type_of_sexp t, expr_of_sexp e)
       | S.Atom op :: _ when is_keyword op ->
           stx_err op sexp0
+      | [S.Atom "Lam"; body] ->
+          LAME(expr_of_sexp body)
+      | [S.Atom "@"; e; t] ->
+          APPE(expr_of_sexp e, type_of_sexp t)
       | e0 :: es ->
           AppE(expr_of_sexp e0, List.map ~f:expr_of_sexp es)
 

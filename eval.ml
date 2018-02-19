@@ -6,6 +6,8 @@ type value =
          | IntV of int
          | TupV of value array
          | CloV of env * var list * exp
+         | TypV
+
  and env = value Env.t
 
 (* Value printing: *)
@@ -19,6 +21,7 @@ let string_of_value v =
       Array.iter vs ~f:(fun v -> B.add_char buf ' '; loop v);
       B.add_char buf ')'
     | CloV _ -> B.add_string buf "#<function>"
+    | TypV -> B.add_string buf "#<type>"
   in loop v; B.contents buf
 
 (* Exception thrown in cases that should not be possible in well-typed
@@ -68,3 +71,13 @@ let rec eval env = function
         eval (Env.extend env x v) e
   | FixE(_, _, _) ->
       raise (Can't_happen "fix requires function type")
+  | LAME body ->
+      let ys = Var.fresh_n 1 (fv body) in
+      CloV(env, ys, body)
+  | APPE (e0, t) ->
+      let v0 = eval env e0 in
+        (match v0 with
+         | CloV(env, xs, body) ->
+             let env = Env.extend_lists env xs [TypV] in
+             eval env body
+         | _ -> raise (Can't_happen "closure expected"))

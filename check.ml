@@ -18,6 +18,11 @@ let assert_arr = function
   | ArrT _ -> ()
   | t      -> got_exp t "arrow type"
 
+(* Asserts that the given type is a universal type. *)
+let assert_all = function
+  | AllT _ -> ()
+  | t      -> got_exp t "universal type"
+
 (* Asserts that two types are the same. *)
 let assert_same_type t1 t2 =
   if t1 = t2
@@ -45,6 +50,61 @@ let un_arr i = function
       then (ts, tr)
       else got_exp t ("arrow of arity " ^ string_of_int i)
   | t -> got_exp t "arrow type"
+
+(* Unpacks an universal type. *)
+let un_all = function
+  | AllT t -> t
+  | t -> got_exp t "universal type"
+
+(* shift_type tau depth shift
+   shift_type (forall (0 -> 1))  0  5) = forall (0 -> 6)
+   shift_type (AllT (ArrT ([VarT 0], VarT 1))) 0 5
+   = (AllT (ArrT ([VarT 0], VarT 6)))
+*)
+let rec shift_type tau depth shift =
+    match tau with
+    | IntT -> IntT
+    | ArrT (ts, tr) ->
+      ArrT (List.map ~f:(fun t -> shift_type t depth shift) ts,
+            shift_type tr depth shift)
+    | TupT ts ->
+      TupT (List.map ~f:(fun t -> shift_type t depth shift) ts)
+    | VarT m ->
+      if m >= depth
+          then VarT (m+shift)
+          else VarT m
+    | AllT t ->
+      AllT (shift_type t (depth+1) shift)
+
+(* type_subst tau1 [a := tau]
+   type_subst  tau1 [n := tau]
+   means substitue tau for (VarT n) in tau1
+   where n counts how many lambdas to look (outwards)
+*)
+let rec type_subst tau1 n tau =
+    match tau1 with
+    | IntT -> IntT
+    | ArrT (ts, tr) ->
+        ArrT (List.map ~f:(fun t -> type_subst t n tau) ts,
+              type_subst tr n tau)
+    | TupT ts ->
+        TupT (List.map ~f:(fun t -> type_subst t n tau) ts)
+    | VarT m -> (* More Arithmetic TODO *)
+        if n = m
+            then shift_type tau 0 m
+            else VarT m
+    | AllT t ->
+        AllT (type_subst t (n+1) tau)
+
+let true =
+  (*
+      (\. \. (0 -> 1)) (\. 1 -> 0)
+   => (\. (0 -> 1))   [0  :=   (\. 1 -> 0)]
+   => \. (0 -> (\. 2 -> 0))
+   *)
+  type_subst   (AllT (ArrT ([VarT 0], VarT 1)))  0  (AllT (ArrT ([VarT 1], VarT 0)))
+  =
+  AllT (ArrT ([VarT 0], AllT (ArrT ([VarT 2], VarT 0))))
 
 (* Type checks a term in the given environment. *)
 let rec tc env = function
@@ -86,3 +146,10 @@ let rec tc env = function
       let t'   = tc env' e in
       assert_same_type t t';
       t
+  | LAME e ->
+      let t = tc env e in
+      AllT t
+  | APPE (e, t) ->
+      let tall = tc env e in
+      let tau1 = un_all tall in
+      type_subst tau1 0 t

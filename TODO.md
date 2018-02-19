@@ -10,3 +10,9 @@
 
 3. Modify `examples/factorial.stlc` to take advantage of the new
    multiplication built-in, and time it again.
+
+# system f & bidirectional checking
+
+* 1 type vars -> many type vars
+* add bidirectional inference to omit lambda types
+* add bidirectional inference to infer type applications
