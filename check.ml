@@ -34,6 +34,11 @@ let assert_same_type t1 t2 =
 (* Asserts that two lists of types are the same. *)
 let assert_same_types = List.iter2_exn ~f:assert_same_type
 
+let assert_same_len n ls =
+    if (List.length ls) = n
+    then ()
+    else invalid_arg ("arity mismatch: expected " ^ (string_of_int n) ^ ", got " ^ (string_of_int (List.length ls)))
+
 (* Projects the `i`th element of a tuple type. *)
 let prj_tup t0 i = match t0 with
   | TupT ts as t ->
@@ -53,7 +58,7 @@ let un_arr i = function
 
 (* Unpacks an universal type. *)
 let un_all = function
-  | AllT t -> t
+  | AllT (n, t) -> (n, t)
   | t -> got_exp t "universal type"
 
 (* shift_type tau depth shift
@@ -73,8 +78,8 @@ let rec shift_type tau depth shift =
       if m >= depth
           then VarT (m+shift)
           else VarT m
-    | AllT t ->
-      AllT (shift_type t (depth+1) shift)
+    | AllT (n, t) ->
+      AllT (n, (shift_type t (depth+n) shift))
 
 (* type_subst tau1 [a := tau]
    type_subst  tau1 [n := tau]
@@ -93,10 +98,16 @@ let rec type_subst tau1 n tau =
         if n = m
             then shift_type tau 0 m
             else VarT m
-    | AllT t ->
-        AllT (type_subst t (n+1) tau)
+    | AllT (m, t) ->
+        AllT (m, (type_subst t (n+m) tau))
 
-let true =
+let rec type_substs tau1 n ts =
+    match (n, ts) with
+    | (-1, []) -> tau1
+    | (n, (t :: ts)) -> type_substs (type_subst tau1 n t) (n-1) ts
+
+
+(* let true =
   (*
       (\. \. (0 -> 1)) (\. 1 -> 0)
    => (\. (0 -> 1))   [0  :=   (\. 1 -> 0)]
@@ -104,7 +115,7 @@ let true =
    *)
   type_subst   (AllT (ArrT ([VarT 0], VarT 1)))  0  (AllT (ArrT ([VarT 1], VarT 0)))
   =
-  AllT (ArrT ([VarT 0], AllT (ArrT ([VarT 2], VarT 0))))
+  AllT (ArrT ([VarT 0], AllT (ArrT ([VarT 2], VarT 0)))) *)
 
 (* Type checks a term in the given environment. *)
 let rec tc env = function
@@ -146,10 +157,17 @@ let rec tc env = function
       let t'   = tc env' e in
       assert_same_type t t';
       t
-  | LAME e ->
+  (*
+   TODO: check that the number of well-formed type variables matches n
+   *)
+  | LAME (n, e) ->
       let t = tc env e in
-      AllT t
-  | APPE (e, t) ->
+      AllT (n, t)
+  (*
+   TODO: check all types are well-formed
+   *)
+  | APPE (e, ts) ->
       let tall = tc env e in
-      let tau1 = un_all tall in
-      type_subst tau1 0 t
+      let (n, tau1) = un_all tall in
+      assert_same_len n ts;
+      type_substs tau1 (n-1) ts

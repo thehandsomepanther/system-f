@@ -1,0 +1,5 @@
+(@(Lam 5) int)
+
+(@(Lam (lam ((x int) (y int)) (- x y))) int)
+
+(@(Lam (lam x x)) int)

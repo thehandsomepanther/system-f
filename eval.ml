@@ -71,13 +71,13 @@ let rec eval env = function
         eval (Env.extend env x v) e
   | FixE(_, _, _) ->
       raise (Can't_happen "fix requires function type")
-  | LAME body ->
-      let ys = Var.fresh_n 1 (fv body) in
+  | LAME (n, body) ->
+      let ys = Var.fresh_n n (fv body) in
       CloV(env, ys, body)
-  | APPE (e0, t) ->
+  | APPE (e0, ts) ->
       let v0 = eval env e0 in
         (match v0 with
          | CloV(env, xs, body) ->
-             let env = Env.extend_lists env xs [TypV] in
+             let env = Env.extend_lists env xs (List.map ~f:(fun _ -> TypV) ts) in
              eval env body
          | _ -> raise (Can't_happen "closure expected"))

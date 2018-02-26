@@ -28,8 +28,10 @@ let rec type_of_sexp = function
        | [] -> stx_err "return type" t0)
   | S.List (S.Atom "tup" :: args) ->
       TupT(List.map ~f:type_of_sexp args)
-  | S.List (S.Atom "all" :: arg :: []) ->
-      AllT (type_of_sexp arg)
+  | S.List (S.Atom "all" :: S.Atom n :: arg :: []) ->
+    let ix = try int_of_string n
+             with Failure _ -> stx_err "integer" (S.Atom n) in
+      AllT (ix, type_of_sexp arg)
   | s -> failwith ("could not parse type: " ^ S.to_string s)
 
 (* Parses a type from a string, via an s-expression. *)
@@ -93,10 +95,12 @@ let rec expr_of_sexp sexp0 =
           FixE(x, type_of_sexp t, expr_of_sexp e)
       | S.Atom op :: _ when is_keyword op ->
           stx_err op sexp0
-      | [S.Atom "Lam"; body] ->
-          LAME(expr_of_sexp body)
-      | [S.Atom "@"; e; t] ->
-          APPE(expr_of_sexp e, type_of_sexp t)
+      | [S.Atom "Lam"; S.Atom n; body] ->
+        let ix = try int_of_string n
+                 with Failure _ -> stx_err "integer" (S.Atom n) in
+          LAME(ix, expr_of_sexp body)
+      | S.Atom "@" :: e :: ts ->
+          APPE(expr_of_sexp e, List.map ~f:type_of_sexp ts)
       | e0 :: es ->
           AppE(expr_of_sexp e0, List.map ~f:expr_of_sexp es)
 

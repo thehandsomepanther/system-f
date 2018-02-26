@@ -38,7 +38,7 @@ let rec repl () =
       repl ()
 
 let true =
-    Parser.expr_of_string "(Lam 5)"
-  = LAME(IntE 5)
+    Parser.expr_of_string "(Lam 2 5)"
+  = LAME(2, IntE 5)
 
-let Syntax.AllT Syntax.IntT = Check.tc Env.empty (LAME (IntE 5))
+let Syntax.AllT (2, Syntax.IntT) = Check.tc Env.empty (LAME (2, (IntE 5)))
