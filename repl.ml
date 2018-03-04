@@ -1,5 +1,10 @@
 open Core
 
+let check_equal_t = Testing.make_check_equal ~test_module:"Repl"
+                                             ~to_string:Printer.type_to_string ()
+
+let check_equal_any () = Testing.make_check_equal ~test_module:"Repl" ()
+
 (* Prints a message to stderr and flushes it. *)
 let warn s =
   Out_channel.output_string Out_channel.stderr s;
@@ -37,8 +42,10 @@ let rec repl () =
         warn ("type error: " ^ msg ^ "\n"));
       repl ()
 
-let true =
-    Parser.expr_of_string "(Lam 2 5)"
-  = LAME(2, IntE 5)
+let () =
+  check_equal_any () (Parser.expr_of_string "(Lam 2 5)")
+                     (LAME(2, IntE 5))
 
-let Syntax.AllT (2, Syntax.IntT) = Check.tc Env.empty (LAME (2, (IntE 5)))
+let () =
+  check_equal_t (Check.tc Env.empty (LAME (2, (IntE 5))))
+                (Syntax.AllT (2, Syntax.IntT))

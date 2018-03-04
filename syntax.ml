@@ -42,4 +42,4 @@ let rec fv e0 =
   | AppE(e, es) -> Set.union_list (List.map ~f:fv (e :: es))
   | FixE(x, _, e) -> Set.remove (fv e) x
   | LAME (_, e) -> fv e
-  | APPE (e, ts) -> fv e
+  | APPE (e, _) -> fv e

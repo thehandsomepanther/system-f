@@ -3,6 +3,9 @@ open Syntax
 
 exception Type_error of string
 
+let check_equal_t = Testing.make_check_equal ~test_module:"Check"
+                                             ~to_string:Printer.type_to_string ()
+
 (* Throws a type error contrasting what we got and expected. *)
 let got_exp got exp =
   raise (Type_error ("got " ^ Printer.type_to_string got ^
@@ -17,11 +20,6 @@ let assert_int = function
 let assert_arr = function
   | ArrT _ -> ()
   | t      -> got_exp t "arrow type"
-
-(* Asserts that the given type is a universal type. *)
-let assert_all = function
-  | AllT _ -> ()
-  | t      -> got_exp t "universal type"
 
 (* Asserts that two types are the same. *)
 let assert_same_type t1 t2 =
@@ -105,17 +103,20 @@ let rec type_substs tau1 n ts =
     match (n, ts) with
     | (-1, []) -> tau1
     | (n, (t :: ts)) -> type_substs (type_subst tau1 n t) (n-1) ts
+    | _ -> invalid_arg ("type_substs: number of type variables " ^
+                        "and number of supplied types do not match")
 
-
-(* let true =
+let () =
   (*
       (\. \. (0 -> 1)) (\. 1 -> 0)
    => (\. (0 -> 1))   [0  :=   (\. 1 -> 0)]
    => \. (0 -> (\. 2 -> 0))
    *)
-  type_subst   (AllT (ArrT ([VarT 0], VarT 1)))  0  (AllT (ArrT ([VarT 1], VarT 0)))
-  =
-  AllT (ArrT ([VarT 0], AllT (ArrT ([VarT 2], VarT 0)))) *)
+  check_equal_t ~name:"type_subst test 1"
+                (type_subst (AllT (1, ArrT ([VarT 0], VarT 1)))
+                            0
+                            (AllT (1, ArrT ([VarT 1], VarT 0))))
+                (AllT (1, ArrT ([VarT 0], AllT (1, ArrT ([VarT 2], VarT 0)))))
 
 (* Type checks a term in the given environment. *)
 let rec tc env = function
