@@ -43,9 +43,9 @@ let rec repl () =
       repl ()
 
 let () =
-  check_equal_any () (Parser.expr_of_string "(Lam 2 5)")
+  check_equal_any () (fun () -> Parser.expr_of_string "(Lam (α β) 5)")
                      (LAME(2, IntE 5))
 
 let () =
-  check_equal_t (Check.tc Env.empty (LAME (2, (IntE 5))))
+  check_equal_t (fun () -> Check.tc Env.empty (LAME (2, (IntE 5))))
                 (Syntax.AllT (2, Syntax.IntT))

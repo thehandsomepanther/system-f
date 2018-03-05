@@ -113,9 +113,10 @@ let () =
    => \. (0 -> (\. 2 -> 0))
    *)
   check_equal_t ~name:"type_subst test 1"
-                (type_subst (AllT (1, ArrT ([VarT 0], VarT 1)))
-                            0
-                            (AllT (1, ArrT ([VarT 1], VarT 0))))
+                (fun () ->
+                  type_subst (AllT (1, ArrT ([VarT 0], VarT 1)))
+                              0
+                              (AllT (1, ArrT ([VarT 1], VarT 0))))
                 (AllT (1, ArrT ([VarT 0], AllT (1, ArrT ([VarT 2], VarT 0)))))
 
 (* Type checks a term in the given environment. *)
