@@ -95,7 +95,9 @@ let rec type_subst tau1 n tau =
     | VarT m -> (* More Arithmetic TODO *)
         if n = m
             then shift_type tau 0 m
-            else VarT m
+            else if n < m
+                     then VarT (m-1)
+                     else VarT m
     | AllT (m, t) ->
         AllT (m, (type_subst t (n+m) tau))
 
@@ -118,6 +120,19 @@ let () =
                               0
                               (AllT (1, ArrT ([VarT 1], VarT 0))))
                 (AllT (1, ArrT ([VarT 0], AllT (1, ArrT ([VarT 2], VarT 0)))))
+
+let () =
+  (*
+      (\. \. (2 -> 1)) (\. 1 -> 0)
+   => (\. (2 -> 1))   [0  :=   (\. 1 -> 0)]
+   => \. (1 -> (\. 2 -> 0))
+   *)
+  check_equal_t ~name:"type_subst test 1"
+                (fun () ->
+                  type_subst (AllT (1, ArrT ([VarT 2], VarT 1)))
+                              0
+                              (AllT (1, ArrT ([VarT 1], VarT 0))))
+                (AllT (1, ArrT ([VarT 1], AllT (1, ArrT ([VarT 2], VarT 0)))))
 
 (* Type checks a term in the given environment. *)
 let rec tc env = function
