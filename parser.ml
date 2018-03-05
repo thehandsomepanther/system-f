@@ -39,6 +39,7 @@ let type_var_of_sexp = function
 
 (* Parses a type from an s-expression. *)
 let rec type_of_sexp type_env = function
+  | S.Atom "_" -> HoleT
   | S.Atom "int" -> IntT
   | S.Atom x ->
       assert_not_keyword x;
@@ -73,15 +74,29 @@ let () =
 
 (* Parses a bindings of a variable to a thing, given a function for
  * parsing the thing. *)
-let binding_of_sexp x_of_sexp = function
+let bindings_of_let_sexp (x_of_sexp, t_of_sexp) = function
+  | S.List [S.Atom x; e; t] ->
+      assert_not_keyword x;
+      (x, x_of_sexp e, t_of_sexp t)
   | S.List [S.Atom x; e] ->
       assert_not_keyword x;
-      (x, x_of_sexp e)
-  | s -> stx_err "binding" s
+      (x, x_of_sexp e, HoleT)
+  | s -> stx_err "let(*) binding" s
 
 (* Parses a list of bindings, given a function for parsing the
  * right-hand-side of one binding. *)
-let bindings_of_sexps x_of_sexp = List.map ~f:(binding_of_sexp x_of_sexp)
+let bindings_of_let_sexps xt_of_sexp = List.map ~f:(bindings_of_let_sexp xt_of_sexp)
+
+let bindings_of_lam_sexp t_of_sexp = function
+  | S.Atom x ->
+      assert_not_keyword x;
+      (x, HoleT)
+  | S.List [S.Atom x; t] ->
+      assert_not_keyword x;
+      (x, t_of_sexp t)
+  | s -> stx_err "lambda arguments" s
+
+let bindings_of_lam_vars t_of_sexp = List.map ~f:(bindings_of_lam_sexp t_of_sexp)
 
 (* Parses an expression from an s-expression. *)
 let rec expr_of_sexp type_env sexp0 =
@@ -95,10 +110,14 @@ let rec expr_of_sexp type_env sexp0 =
       match ss with
       | [] -> stx_err "expression" sexp0
       | [S.Atom "let"; S.List bindings; body] ->
-          LetE(bindings_of_sexps (expr_of_sexp type_env) bindings,
+          LetE(bindings_of_let_sexps
+                 (expr_of_sexp type_env, type_of_sexp type_env)
+                 bindings,
                expr_of_sexp type_env body)
       | [S.Atom "let*"; S.List bindings; body] ->
-          let bindings' = bindings_of_sexps (expr_of_sexp type_env) bindings in
+          let bindings' = bindings_of_let_sexps
+                            (expr_of_sexp type_env, type_of_sexp type_env)
+                            bindings in
           List.fold_right ~f:(fun b e' -> LetE([b], e'))
                           ~init:(expr_of_sexp type_env body)
                           bindings'
@@ -113,7 +132,7 @@ let rec expr_of_sexp type_env sexp0 =
                    with Failure _ -> stx_err "integer" (S.Atom ix) in
           PrjE(expr_of_sexp type_env e, ix)
       | [S.Atom "lam"; S.List bindings; body] ->
-          LamE(bindings_of_sexps (type_of_sexp type_env) bindings,
+          LamE(bindings_of_lam_vars (type_of_sexp type_env) bindings,
                expr_of_sexp type_env body)
       | [S.Atom "fix"; S.Atom x; t; e] ->
           assert_not_keyword x;
@@ -137,6 +156,19 @@ let () =
   check_equal_any () ~name:"expr_of_string  Lam(a). (lambda(x:a). x)"
     (fun () -> expr_of_string "(Lam (a) (lam ((x a)) x))")
     (LAME (1, LamE (["x", VarT 0], VarE "x")))
+
+let () =
+  check_equal_any () ~name:"expr_of_string  (lambda(x:int  y:_). x)"
+    (fun () -> expr_of_string "(lam ((x int)  y) x)")
+    (LamE ([("x", IntT); ("y", HoleT)], VarE "x"))
+
+let () =
+  check_equal_any () ~name:"expr_of_string  (let ((f (lam (x) x) (-> int int))) 0)"
+    (fun () -> expr_of_string "(let ((f (lam (x) x) (-> int int))) 0)")
+    (LetE (["f",
+            LamE (["x", HoleT], VarE "x"),
+            ArrT ([IntT], IntT)],
+      IntE 0))
 
 let () =
   check_equal_any ()

@@ -11,6 +11,9 @@ let got_exp got exp =
   raise (Type_error ("got " ^ Printer.type_to_string got ^
                      " where " ^ exp ^ " expected"))
 
+let got_hole msg =
+  raise (Type_error ("got unelided type holes in " ^ msg))
+
 (* Asserts that the given type is int. *)
 let assert_int = function
   | IntT -> ()
@@ -29,13 +32,33 @@ let assert_same_type t1 t2 =
                           Printer.type_to_string t1 ^ " ≠ " ^
                           Printer.type_to_string t2))
 
-(* Asserts that two lists of types are the same. *)
-let assert_same_types = List.iter2_exn ~f:assert_same_type
+let rec assert_hole_type_equals_complete_type t1 t2 =
+  match t1, t2 with
+    | HoleT, _ -> ()
+    | ArrT (ts1, tr1), ArrT (ts2, tr2) ->
+        assert_hole_type_equals_complete_type tr1 tr2;
+        List.iter2_exn ~f:assert_hole_type_equals_complete_type ts1 ts2
+    | TupT ts1, TupT ts2 ->
+        List.iter2_exn ~f:assert_hole_type_equals_complete_type ts1 ts2
+    | AllT (n1, t1), AllT (n2, t2) ->
+        if n1 = n2
+            then ()
+            else assert_same_type t1 t2;
+        assert_hole_type_equals_complete_type t1 t2
+    | t1, t2 -> assert_same_type t1 t2
+
+let assert_complete_type t =
+  if type_has_hole t
+  then got_hole (Printer.type_to_string t)
+  else ()
 
 let assert_same_len n ls =
     if (List.length ls) = n
     then ()
-    else invalid_arg ("arity mismatch: expected " ^ (string_of_int n) ^ ", got " ^ (string_of_int (List.length ls)))
+    else raise (Type_error ("arity mismatch: expected " ^
+                            string_of_int n ^
+                            ", got " ^
+                            string_of_int (List.length ls)))
 
 (* Projects the `i`th element of a tuple type. *)
 let prj_tup t0 i = match t0 with
@@ -53,6 +76,13 @@ let un_arr i = function
       then (ts, tr)
       else got_exp t ("arrow of arity " ^ string_of_int i)
   | t -> got_exp t "arrow type"
+
+let un_tup i = function
+  | TupT ts as t ->
+      if i = List.length ts
+      then ts
+      else got_exp t ("tuple type of " ^ string_of_int i ^ " element(s)")
+  | t -> got_exp t "tuple type"
 
 (* Unpacks an universal type. *)
 let un_all = function
@@ -78,6 +108,7 @@ let rec shift_type tau depth shift =
           else VarT m
     | AllT (n, t) ->
       AllT (n, (shift_type t (depth+n) shift))
+    | HoleT -> got_hole "shift_type"
 
 (* type_subst tau1 [a := tau]
    type_subst  tau1 [n := tau]
@@ -100,6 +131,9 @@ let rec type_subst tau1 n tau =
                      else VarT m
     | AllT (m, t) ->
         AllT (m, (type_subst t (n+m) tau))
+    | HoleT -> got_hole ("type_subst (" ^ Printer.type_to_string tau1 ^
+                         ") " ^ string_of_int n ^ " (" ^
+                         Printer.type_to_string tau ^ ")")
 
 let rec type_substs tau1 n ts =
     match (n, ts) with
@@ -151,55 +185,124 @@ let rec kc typevars_env = function
   | VarT n -> raise (Type_error ("unbound type variable: de Bruijn index " ^
                                  Int.to_string n))
   | AllT (n, t) -> kc (n+typevars_env) t
+  | HoleT -> got_hole "kc"
 
-(* Type checks a term in the given environment. *)
-let rec tc (typevars_env , termvars_env as env) = function
+let rec infer_elided_type_and_extend (typevars_env , termvars_env as env) xets =
+  let xts = List.map ~f:(fun (x, e, t) -> (x, tc_check env e t)) xets in
+  let termvars_env' = Env.extend_list termvars_env xts in
+  (typevars_env, termvars_env')
+
+(* Infers the type of a term in the given environment. We require that
+   tc_infer always returns a type without any holes. *)
+and tc_infer (typevars_env , termvars_env as env) = function
   | VarE x ->
       (match Env.lookup termvars_env x with
-       | Some t -> t
+       | Some t -> assert_complete_type t; t
        | None   -> raise (Type_error ("unbound variable: " ^ x)))
   | LetE(xes, body) ->
-      let xts  = List.map ~f:(fun (x, e) -> (x, tc env e)) xes in
-      let termvars_env' = Env.extend_list termvars_env xts in
-        tc (typevars_env , termvars_env') body
+      tc_infer (infer_elided_type_and_extend env xes) body
   | IntE _ -> IntT
   | SubE(e1, e2) ->
-      assert_int (tc env e1);
-      assert_int (tc env e2);
+      assert_int (tc_infer env e1);
+      assert_int (tc_infer env e2);
       IntT
   | If0E(e1, e2, e3) ->
-      assert_int (tc env e1);
-      let t2 = tc env e2 in
-      let t3 = tc env e3 in
+      assert_int (tc_infer env e1);
+      let t2 = tc_infer env e2 in
+      let t3 = tc_infer env e3 in
       assert_same_type t2 t3;
       t2
   | TupE(es) ->
-      TupT(List.map ~f:(tc env) es)
+      TupT(List.map ~f:(tc_infer env) es)
   | PrjE(e, ix) ->
-      prj_tup (tc env e) ix
+      prj_tup (tc_infer env e) ix
   | LamE(xts, body) ->
-      List.iter xts ~f:(fun (_, t) -> kc typevars_env t);
+      List.iter xts ~f:(fun (_, t) -> assert_complete_type t; kc typevars_env t);
       let termvars_env' = Env.extend_list termvars_env xts in
-      let tr   = tc (typevars_env , termvars_env') body in
+      let tr   = tc_infer (typevars_env , termvars_env') body in
       ArrT(List.map ~f:snd xts, tr)
   | AppE(e0, es) ->
-      let (tas, tr) = un_arr (List.length es) (tc env e0) in
-      let ts        = List.map ~f:(tc env) es in
-      assert_same_types tas ts;
+      let (tas, tr) = un_arr (List.length es) (tc_infer env e0) in
+      let _         = List.map2_exn ~f:(tc_check env) es tas in
       tr
   | FixE(x, t, e) ->
+      assert_complete_type t;
       kc typevars_env t;
       assert_arr t;
       let termvars_env' = Env.extend termvars_env x t in
-      let t'   = tc (typevars_env , termvars_env') e in
+      let t'   = tc_infer (typevars_env , termvars_env') e in
       assert_same_type t t';
       t
   | LAME (n, e) ->
-      let t = tc (n+typevars_env, termvars_env) e in
+      let t = tc_infer (n+typevars_env, termvars_env) e in
       AllT (n, t)
   | APPE (e, ts) ->
       List.iter ts ~f:(kc typevars_env);
-      let tall = tc env e in
+      let tall = tc_infer env e in
       let (n, tau1) = un_all tall in
       assert_same_len n ts;
       type_substs tau1 (n-1) ts
+
+(* Type check the given term against the given type in the given environment.
+   Return the new type with all type holes filled up. *)
+and tc_check (typevars_env , termvars_env as env) exp typ =
+  match (exp, typ) with
+  | exp, HoleT -> tc_infer env exp
+  | LetE(xes, body), typ ->
+      tc_check (infer_elided_type_and_extend env xes) body typ
+  | If0E(e1, e2, e3), typ ->
+      let _ = tc_check env e1 IntT in
+      let t2 = tc_check env e2 typ in
+      let t3 = tc_check env e3 typ in
+      assert_same_type t2 t3;
+      t2
+  | TupE(es), typ ->
+      let ts = un_tup (List.length es) typ in
+      TupT (List.map2_exn ~f:(tc_check env) es ts)
+  | LamE(xts, body), typ ->
+      let (ts, tr) = un_arr (List.length xts) typ in
+      List.iter2_exn xts ts
+        ~f:(fun (_, t) t' ->
+              assert_complete_type t';
+              assert_hole_type_equals_complete_type t t');
+      let new_xts = List.map2_exn ~f:(fun (x, _) t' -> x, t') xts ts in
+      let termvars_env' = Env.extend_list termvars_env new_xts in
+      ArrT (ts, tc_check (typevars_env , termvars_env') body tr)
+  | FixE(x, HoleT, e), typ ->
+      assert_arr typ;
+      let termvars_env' = Env.extend termvars_env x typ in
+      tc_check (typevars_env , termvars_env') e typ
+  | LAME (n, e), typ ->
+      let (m, t) = un_all typ in
+      if n = m
+          then AllT (n, tc_check (n+typevars_env, termvars_env) e t)
+          else got_exp typ
+                       ("Lam that takes " ^ string_of_int m ^ " type variables")
+  | _ ->
+      let typ' = tc_infer env exp in
+      assert_hole_type_equals_complete_type typ typ';
+      typ
+
+let () =
+  check_equal_t
+    ~name:"tc_check propagates type informations into lambdas"
+    (fun () -> tc_check (0, Env.empty)
+                 (LamE ([("x", HoleT)], VarE "x"))
+                 (ArrT ([IntT], IntT)))
+    (ArrT ([IntT], IntT))
+
+let () =
+  check_equal_t
+    ~name:"tc_check propagates type informations into Lambdas"
+    (fun () -> tc_check (0, Env.empty)
+                 (LAME (1, LamE ([("y", HoleT)], VarE "y")))
+                 (AllT (1, ArrT ([VarT 0], VarT 0))))
+    (AllT (1, ArrT ([VarT 0], VarT 0)))
+
+let () =
+  check_equal_t
+    ~name:"tc_check propagates type informations back from lambda body"
+    (fun () -> tc_check (0, Env.empty)
+                 (LamE ([("x", HoleT)], VarE "x"))
+                 (ArrT ([IntT], HoleT)))
+    (ArrT ([IntT], IntT))

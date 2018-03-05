@@ -33,7 +33,7 @@ let rec eval env = function
   | VarE var ->
       Env.lookup_exn env var
   | LetE(bindings, body) ->
-      let bindings' = List.map ~f:(fun (x, e) -> (x, eval env e)) bindings in
+      let bindings' = List.map ~f:(fun (x, e, _) -> (x, eval env e)) bindings in
       let env' = Env.extend_list env bindings' in
         eval env' body
   | IntE z ->
