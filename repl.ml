@@ -16,7 +16,7 @@ let rec read () =
   try
     print_string "> ";
     Out_channel.flush stdout;
-    Some (Parser.expr_of_sexp (Sexp.input_sexp In_channel.stdin))
+    Some (Parser.expr_of_sexp [] (Sexp.input_sexp In_channel.stdin))
   with
   | End_of_file -> None
   | Sexp.Parse_error(e) ->
