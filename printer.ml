@@ -25,7 +25,7 @@ let rec type_to_sexp type_env = function
       let tvs = Var.fresh_n n (Var.Set.of_list type_env) in
       S.List [S.Atom "all";
               S.List (List.map ~f:(fun s -> S.Atom s) tvs);
-              type_to_sexp (List.append (List.rev tvs) type_env) t]
+              type_to_sexp ((List.rev tvs) @ type_env) t]
 
 (* Prints a type as a string. *)
 let type_to_string t = S.to_string_hum (type_to_sexp [] t)

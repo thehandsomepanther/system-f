@@ -40,6 +40,21 @@ $ ./main.byte
 
 to get a REPL. See examples in the `tests/` subdirectory.
 
+## Testing in REPL
+
+Use the following directives in `coretop` to load all required modules.
+
+```
+$ coretop
+#mod_use "var.ml";;
+#mod_use "testing.ml";;
+#mod_use "env.ml";;
+#mod_use "syntax.ml";;
+#mod_use "printer.ml";;
+#mod_use "parser.ml";;
+#use "check.ml";;
+```
+
 [OPAM]: https://opam.ocaml.org/doc/Install.html
 
 [OPAM-Cygwin]: https://fdopen.github.io/opam-repository-mingw/installation/

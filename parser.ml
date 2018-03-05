@@ -54,7 +54,7 @@ let rec type_of_sexp type_env = function
   | S.List [S.Atom "all"; S.List new_type_vars; arg] ->
       let btv = List.map ~f:type_var_of_sexp new_type_vars in
       AllT (List.length btv,
-            type_of_sexp (List.append (List.rev btv) type_env)
+            type_of_sexp ((List.rev btv) @ type_env)
                          arg)
   | s -> failwith ("could not parse type: " ^ S.to_string s)
 
@@ -123,7 +123,7 @@ let rec expr_of_sexp type_env sexp0 =
       | [S.Atom "Lam"; S.List new_type_vars; body] ->
           let btv = List.map ~f:type_var_of_sexp new_type_vars in
           LAME(List.length btv,
-               expr_of_sexp (List.append (List.rev btv) type_env)
+               expr_of_sexp ((List.rev btv) @ type_env)
                             body)
       | S.Atom "@" :: e :: ts ->
           APPE(expr_of_sexp type_env e, List.map ~f:(type_of_sexp type_env) ts)
@@ -144,7 +144,7 @@ let () =
     (fun () -> expr_of_string
                   ("(Lam (a r) " ^
                    "   (lam ((k (all (s) (-> (-> a s) s))))" ^
-                  "       (@ k r)))"))
+                   "      (@ k r)))"))
     (LAME (2,
       LamE (["k", AllT (1, ArrT ([ArrT ([VarT 2], VarT 0)], VarT 0))],
        APPE (VarE "k", [VarT 0]))))

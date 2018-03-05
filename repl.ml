@@ -43,7 +43,7 @@ let rec repl () =
       repl ()
 
 let () =
-  check_equal_any () (fun () -> Parser.expr_of_string "(Lam (α β) 5)")
+  check_equal_any () (fun () -> Parser.expr_of_string "(Lam (a b) 5)")
                      (LAME(2, IntE 5))
 
 let () =
