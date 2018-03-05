@@ -1,0 +1,9 @@
+>  : int
+-> 5
+>  : (-> int int int)
+-> #<function>
+>  : (all (a) (-> a a))
+-> #<function>
+>  : (-> int int)
+-> #<function>
+> 

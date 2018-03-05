@@ -1,0 +1,7 @@
+(@ (Lam (a) 5) int)
+
+(@ (Lam (a) (lam ((x int) (y int)) (- x y))) int)
+
+(Lam (a) (lam ((x a)) x))
+
+(@ (Lam (a) (lam ((x a)) x)) int)
