@@ -34,7 +34,7 @@ let rec repl () =
   | None -> ()
   | Some e ->
       (try
-        let t = Check.tc Env.empty e in
+        let t = Check.tc (0 , Env.empty) e in
         print_string (" : " ^ Printer.type_to_string t ^ "\n");
         let v = Eval.eval Env.empty e in
         print_string ("-> " ^ Eval.string_of_value v ^ "\n");
@@ -47,5 +47,5 @@ let () =
                      (LAME(2, IntE 5))
 
 let () =
-  check_equal_t (fun () -> Check.tc Env.empty (LAME (2, (IntE 5))))
+  check_equal_t (fun () -> Check.tc (0, Env.empty) (LAME (2, (IntE 5))))
                 (Syntax.AllT (2, Syntax.IntT))

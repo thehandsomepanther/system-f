@@ -134,16 +134,34 @@ let () =
                               (AllT (1, ArrT ([VarT 1], VarT 0))))
                 (AllT (1, ArrT ([VarT 1], AllT (1, ArrT ([VarT 2], VarT 0)))))
 
+(* Kind checks a type in the given type environment *)
+(*
+   Since we only have kinds, *, type environments degenerates to
+   be isomorphic to natural numbers. Moreover, as we don't allow
+   the user to type in de Bruijn indices directly, this check
+   becomes redundant.
+ *)
+let rec kc typevars_env = function
+  | IntT -> ()
+  | ArrT (ts, tr) ->
+        List.iter ts ~f:(kc typevars_env);
+        kc typevars_env tr
+  | TupT ts -> List.iter ts ~f:(kc typevars_env)
+  | VarT n when (n < typevars_env) -> ()
+  | VarT n -> raise (Type_error ("unbound type variable: de Bruijn index " ^
+                                 Int.to_string n))
+  | AllT (n, t) -> kc (n+typevars_env) t
+
 (* Type checks a term in the given environment. *)
-let rec tc env = function
+let rec tc (typevars_env , termvars_env as env) = function
   | VarE x ->
-      (match Env.lookup env x with
+      (match Env.lookup termvars_env x with
        | Some t -> t
        | None   -> raise (Type_error ("unbound variable: " ^ x)))
   | LetE(xes, body) ->
       let xts  = List.map ~f:(fun (x, e) -> (x, tc env e)) xes in
-      let env' = Env.extend_list env xts in
-        tc env' body
+      let termvars_env' = Env.extend_list termvars_env xts in
+        tc (typevars_env , termvars_env') body
   | IntE _ -> IntT
   | SubE(e1, e2) ->
       assert_int (tc env e1);
@@ -160,8 +178,9 @@ let rec tc env = function
   | PrjE(e, ix) ->
       prj_tup (tc env e) ix
   | LamE(xts, body) ->
-      let env' = Env.extend_list env xts in
-      let tr   = tc env' body in
+      List.iter xts ~f:(fun (_, t) -> kc typevars_env t);
+      let termvars_env' = Env.extend_list termvars_env xts in
+      let tr   = tc (typevars_env , termvars_env') body in
       ArrT(List.map ~f:snd xts, tr)
   | AppE(e0, es) ->
       let (tas, tr) = un_arr (List.length es) (tc env e0) in
@@ -169,21 +188,17 @@ let rec tc env = function
       assert_same_types tas ts;
       tr
   | FixE(x, t, e) ->
+      kc typevars_env t;
       assert_arr t;
-      let env' = Env.extend env x t in
-      let t'   = tc env' e in
+      let termvars_env' = Env.extend termvars_env x t in
+      let t'   = tc (typevars_env , termvars_env') e in
       assert_same_type t t';
       t
-  (*
-   TODO: check that the number of well-formed type variables matches n
-   *)
   | LAME (n, e) ->
-      let t = tc env e in
+      let t = tc (n+typevars_env, termvars_env) e in
       AllT (n, t)
-  (*
-   TODO: check all types are well-formed
-   *)
   | APPE (e, ts) ->
+      List.iter ts ~f:(kc typevars_env);
       let tall = tc env e in
       let (n, tau1) = un_all tall in
       assert_same_len n ts;
