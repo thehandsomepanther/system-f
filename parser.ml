@@ -45,7 +45,7 @@ let rec type_of_sexp type_env = function
       assert_not_keyword x;
       (match (List.findi type_env ~f:(fun _ var -> x = var)) with
         | Some (ix, _) -> VarT ix
-        | _ -> stx_err "Unbound type variable" (S.Atom x))
+        | _ -> stx_err "bound type variable" (S.Atom x))
   | S.List (S.Atom "->" :: args) as t0 ->
       (match List.rev (List.map ~f:(type_of_sexp type_env) args) with
        | last :: init -> ArrT(List.rev init, last)

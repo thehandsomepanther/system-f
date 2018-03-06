@@ -47,9 +47,10 @@ let rec assert_hole_type_equals_complete_type t1 t2 =
         assert_hole_type_equals_complete_type t1 t2
     | t1, t2 -> assert_same_type t1 t2
 
-let assert_complete_type t =
+let assert_complete_type ?(context = "") t =
   if type_has_hole t
-  then got_hole (Printer.type_to_string t)
+  then got_hole (if String.is_empty context then "" else (context ^ ": ") ^
+                 Printer.type_to_string t)
   else ()
 
 let assert_same_len n ls =
@@ -197,7 +198,10 @@ let rec infer_elided_type_and_extend (typevars_env , termvars_env as env) xets =
 and tc_infer (typevars_env , termvars_env as env) = function
   | VarE x ->
       (match Env.lookup termvars_env x with
-       | Some t -> assert_complete_type t; t
+       (* Invariant: t should always be a complete type. Types with holes
+          should never make their way into the environment. *)
+       | Some t -> assert_complete_type ~context:("the type of " ^ x) t;
+                   t
        | None   -> raise (Type_error ("unbound variable: " ^ x)))
   | LetE(xes, body) ->
       tc_infer (infer_elided_type_and_extend env xes) body
@@ -217,7 +221,15 @@ and tc_infer (typevars_env , termvars_env as env) = function
   | PrjE(e, ix) ->
       prj_tup (tc_infer env e) ix
   | LamE(xts, body) ->
-      List.iter xts ~f:(fun (_, t) -> assert_complete_type t; kc typevars_env t);
+      List.iter xts
+        ~f:(fun (x, t) ->
+             assert_complete_type ~context:("the type of argument " ^ x ^
+                                            " in (lam (" ^
+                                            String.concat ~sep:" "
+                                              (List.map ~f:fst xts) ^
+                                            ") ...)")
+                                  t;
+             kc typevars_env t);
       let termvars_env' = Env.extend_list termvars_env xts in
       let tr   = tc_infer (typevars_env , termvars_env') body in
       ArrT(List.map ~f:snd xts, tr)
@@ -226,7 +238,8 @@ and tc_infer (typevars_env , termvars_env as env) = function
       let _         = List.map2_exn ~f:(tc_check env) es tas in
       tr
   | FixE(x, t, e) ->
-      assert_complete_type t;
+      assert_complete_type t
+        ~context:("the type of " ^ x ^ " in (fix " ^ x ^ " ...)");
       kc typevars_env t;
       assert_arr t;
       let termvars_env' = Env.extend termvars_env x t in
@@ -262,8 +275,13 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
   | LamE(xts, body), typ ->
       let (ts, tr) = un_arr (List.length xts) typ in
       List.iter2_exn xts ts
-        ~f:(fun (_, t) t' ->
-              assert_complete_type t';
+        ~f:(fun (x, t) t' ->
+              assert_complete_type ~context:("the annotated type of " ^ x ^
+                                             " in (lam (" ^
+                                             String.concat ~sep:" "
+                                               (List.map ~f:fst xts) ^
+                                             ") ...)")
+                                   t';
               assert_hole_type_equals_complete_type t t');
       let new_xts = List.map2_exn ~f:(fun (x, _) t' -> x, t') xts ts in
       let termvars_env' = Env.extend_list termvars_env new_xts in
