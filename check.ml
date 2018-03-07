@@ -12,7 +12,7 @@ let got_exp got exp =
                      " where " ^ exp ^ " expected"))
 
 let got_hole msg =
-  raise (Type_error ("got unelided type holes in " ^ msg))
+  raise (Type_error ("got type with holes in " ^ msg))
 
 (* Asserts that the given type is int. *)
 let assert_int = function
@@ -24,28 +24,56 @@ let assert_arr = function
   | ArrT _ -> ()
   | t      -> got_exp t "arrow type"
 
+(* Check that r does not appear anywhere in t (using physical equality) *)
+let assert_holes_not_shared_invariant r t =
+  let rec do_assert = function
+    | IntT -> ()
+    | ArrT (ts, tr) -> List.iter ~f:do_assert (tr :: ts)
+    | TupT ts -> List.iter ~f:do_assert ts
+    | VarT _ -> ()
+    | AllT (_, t) -> do_assert t
+    | HoleT r' ->
+        if phys_equal r r'
+        then failwith ("Invariant is broken: the reference holding " ^
+                       Printer.type_to_string (HoleT r) ^
+                       " appears in the type " ^
+                       Printer.type_to_string t)
+        else (match !r' with None -> () | Some t -> do_assert t)
+  in do_assert t
+
 (* Asserts that two types are the same. *)
 let assert_same_type t1 t2 =
-  if t1 = t2
-  then ()
-  else raise (Type_error ("type mismatch: " ^
+  let rec do_assert = function
+    | t1, HoleT {contents = Some t2} -> do_assert (t1, t2)
+    | HoleT {contents = Some t1}, t2 -> do_assert (t1, t2)
+    (* From now on, both sides are _not_ of form HoleT {contents = Some _} *)
+    | HoleT ({contents = None}),       HoleT ({contents = None}) ->
+       raise (Type_error ("cannot resolve type holes in " ^
+                          Printer.type_to_string t1 ^ " and " ^
+                          Printer.type_to_string t2))
+    (* If the above pattern does not match, then at least one side is _not_
+       of form (HoleT {contents = None}). Combining with the first two
+       patterns, we know that at least one side is not (HoleT _). *)
+    | HoleT ({contents = None} as r1), t2 ->
+        assert_holes_not_shared_invariant r1 t2;
+        r1 := Some t2
+    | t1,                              HoleT ({contents = None} as r2) ->
+        assert_holes_not_shared_invariant r2 t1;
+        r2 := Some t1
+    | IntT, IntT -> ()
+    | ArrT (ts1, tr1), ArrT (ts2, tr2) when List.length ts1 = List.length ts2 ->
+        List.iter2_exn ~f:(fun t1 t2 -> do_assert (t1, t2)) ts1 ts2;
+        do_assert (tr1, tr2)
+    | TupT ts1, TupT ts2 when List.length ts1 = List.length ts2 ->
+        List.iter2_exn ~f:(fun t1 t2 -> do_assert (t1, t2)) ts1 ts2;
+    | VarT n1, VarT n2 when n1 = n2 -> ()
+    | AllT (n1, t1), AllT (n2, t2) when n1 = n2 ->
+        do_assert (t1, t2)
+    | _ ->
+       raise (Type_error ("type mismatch: " ^
                           Printer.type_to_string t1 ^ " ≠ " ^
                           Printer.type_to_string t2))
-
-let rec assert_hole_type_equals_complete_type t1 t2 =
-  match t1, t2 with
-    | HoleT, _ -> ()
-    | ArrT (ts1, tr1), ArrT (ts2, tr2) ->
-        assert_hole_type_equals_complete_type tr1 tr2;
-        List.iter2_exn ~f:assert_hole_type_equals_complete_type ts1 ts2
-    | TupT ts1, TupT ts2 ->
-        List.iter2_exn ~f:assert_hole_type_equals_complete_type ts1 ts2
-    | AllT (n1, t1), AllT (n2, t2) ->
-        if n1 = n2
-            then ()
-            else assert_same_type t1 t2;
-        assert_hole_type_equals_complete_type t1 t2
-    | t1, t2 -> assert_same_type t1 t2
+  in do_assert (t1, t2)
 
 let assert_complete_type ?(context = "") t =
   if type_has_hole t
@@ -90,6 +118,16 @@ let un_all = function
   | AllT (n, t) -> (n, t)
   | t -> got_exp t "universal type"
 
+let rec normalize_complete_type = function
+  | IntT -> IntT
+  | ArrT (ts, tr) -> ArrT (List.map ~f:normalize_complete_type ts,
+                           normalize_complete_type tr)
+  | TupT ts -> TupT (List.map ~f:normalize_complete_type ts)
+  | VarT n -> VarT n
+  | AllT (n, t) -> AllT (n, normalize_complete_type t)
+  | HoleT {contents = Some t} -> normalize_complete_type t
+  | HoleT {contents = None} -> got_hole "normalize_complete_type"
+
 (* shift_type tau depth shift
    shift_type (forall (0 -> 1))  0  5) = forall (0 -> 6)
    shift_type (AllT (ArrT ([VarT 0], VarT 1))) 0 5
@@ -109,7 +147,9 @@ let rec shift_type tau depth shift =
           else VarT m
     | AllT (n, t) ->
       AllT (n, (shift_type t (depth+n) shift))
-    | HoleT -> got_hole "shift_type"
+    | HoleT {contents = Some t} ->
+      shift_type t depth shift
+    | HoleT {contents = None} -> got_hole "shift_type"
 
 (* type_subst tau1 [a := tau]
    type_subst  tau1 [n := tau]
@@ -132,7 +172,10 @@ let rec type_subst tau1 n tau =
                      else VarT m
     | AllT (m, t) ->
         AllT (m, (type_subst t (n+m) tau))
-    | HoleT -> got_hole ("type_subst (" ^ Printer.type_to_string tau1 ^
+    | HoleT {contents = Some t} ->
+        type_subst t n tau
+    | HoleT {contents = None} ->
+               got_hole ("type_subst (" ^ Printer.type_to_string tau1 ^
                          ") " ^ string_of_int n ^ " (" ^
                          Printer.type_to_string tau ^ ")")
 
@@ -186,10 +229,15 @@ let rec kc typevars_env = function
   | VarT n -> raise (Type_error ("unbound type variable: de Bruijn index " ^
                                  Int.to_string n))
   | AllT (n, t) -> kc (n+typevars_env) t
-  | HoleT -> got_hole "kc"
+  | HoleT {contents = Some t} -> kc typevars_env t
+  | HoleT {contents = None} -> got_hole "kc"
 
 let rec infer_elided_type_and_extend (typevars_env , termvars_env as env) xets =
-  let xts = List.map ~f:(fun (x, e, t) -> (x, tc_check env e t)) xets in
+  let xts = List.map xets
+              ~f:(fun (x, e, t) ->
+                   tc_check env e t;
+                   assert_complete_type t;
+                   (x, t)) in
   let termvars_env' = Env.extend_list termvars_env xts in
   (typevars_env, termvars_env')
 
@@ -201,7 +249,7 @@ and tc_infer (typevars_env , termvars_env as env) = function
        (* Invariant: t should always be a complete type. Types with holes
           should never make their way into the environment. *)
        | Some t -> assert_complete_type ~context:("the type of " ^ x) t;
-                   t
+                   normalize_complete_type t
        | None   -> raise (Type_error ("unbound variable: " ^ x)))
   | LetE(xes, body) ->
       tc_infer (infer_elided_type_and_extend env xes) body
@@ -260,67 +308,72 @@ and tc_infer (typevars_env , termvars_env as env) = function
    Return the new type with all type holes filled up. *)
 and tc_check (typevars_env , termvars_env as env) exp typ =
   match (exp, typ) with
-  | exp, HoleT -> tc_infer env exp
+  | exp, HoleT ({contents = None} as r) -> r := Some (tc_infer env exp)
+  | exp, HoleT ({contents = Some t}) -> tc_check env exp t
   | LetE(xes, body), typ ->
       tc_check (infer_elided_type_and_extend env xes) body typ
   | If0E(e1, e2, e3), typ ->
-      let _ = tc_check env e1 IntT in
-      let t2 = tc_check env e2 typ in
-      let t3 = tc_check env e3 typ in
-      assert_same_type t2 t3;
-      t2
+      tc_check env e1 IntT;
+      tc_check env e2 typ;
+      tc_check env e3 typ
   | TupE(es), typ ->
       let ts = un_tup (List.length es) typ in
-      TupT (List.map2_exn ~f:(tc_check env) es ts)
+      List.iter2_exn ~f:(tc_check env) es ts
   | LamE(xts, body), typ ->
       let (ts, tr) = un_arr (List.length xts) typ in
       List.iter2_exn xts ts
         ~f:(fun (x, t) t' ->
-              assert_complete_type ~context:("the annotated type of " ^ x ^
+              assert_same_type t t';
+              assert_complete_type ~context:("the type of " ^ x ^
                                              " in (lam (" ^
                                              String.concat ~sep:" "
                                                (List.map ~f:fst xts) ^
                                              ") ...)")
-                                   t';
-              assert_hole_type_equals_complete_type t t');
-      let new_xts = List.map2_exn ~f:(fun (x, _) t' -> x, t') xts ts in
-      let termvars_env' = Env.extend_list termvars_env new_xts in
-      ArrT (ts, tc_check (typevars_env , termvars_env') body tr)
-  | FixE(x, HoleT, e), typ ->
+                                   t);
+      let termvars_env' = Env.extend_list termvars_env xts in
+      tc_check (typevars_env , termvars_env') body tr
+  | FixE(x, HoleT ({contents = None} as r), e), typ ->
+      assert_holes_not_shared_invariant r typ;
+      r := Some typ;
       assert_arr typ;
       let termvars_env' = Env.extend termvars_env x typ in
       tc_check (typevars_env , termvars_env') e typ
   | LAME (n, e), typ ->
       let (m, t) = un_all typ in
       if n = m
-          then AllT (n, tc_check (n+typevars_env, termvars_env) e t)
+          then tc_check (n+typevars_env, termvars_env) e t
           else got_exp typ
                        ("Lam that takes " ^ string_of_int m ^ " type variables")
-  | _ ->
+  | exp, typ ->
       let typ' = tc_infer env exp in
-      assert_hole_type_equals_complete_type typ typ';
-      typ
+      assert_same_type typ typ'
 
 let () =
   check_equal_t
     ~name:"tc_check propagates type informations into lambdas"
-    (fun () -> tc_check (0, Env.empty)
-                 (LamE ([("x", HoleT)], VarE "x"))
-                 (ArrT ([IntT], IntT)))
+    (fun () -> let t = ArrT ([IntT], IntT) in
+               tc_check (0, Env.empty)
+                 (LamE ([("x", HoleT (ref None))], VarE "x"))
+                 t;
+               t)
     (ArrT ([IntT], IntT))
 
 let () =
   check_equal_t
     ~name:"tc_check propagates type informations into Lambdas"
-    (fun () -> tc_check (0, Env.empty)
-                 (LAME (1, LamE ([("y", HoleT)], VarE "y")))
-                 (AllT (1, ArrT ([VarT 0], VarT 0))))
+    (fun () -> let t = AllT (1, ArrT ([VarT 0], VarT 0)) in
+               tc_check (0, Env.empty)
+                  (LAME (1, LamE ([("y", HoleT (ref None))], VarE "y")))
+                  t;
+               t)
     (AllT (1, ArrT ([VarT 0], VarT 0)))
 
 let () =
   check_equal_t
     ~name:"tc_check propagates type informations back from lambda body"
-    (fun () -> tc_check (0, Env.empty)
-                 (LamE ([("x", HoleT)], VarE "x"))
-                 (ArrT ([IntT], HoleT)))
-    (ArrT ([IntT], IntT))
+    (fun () -> let t = ArrT ([IntT], HoleT (ref None)) in
+               tc_check (0, Env.empty)
+                 (LamE ([("x", HoleT (ref None))], VarE "x"))
+                 t;
+               t)
+    (ArrT ([IntT], HoleT (ref (Some IntT))))

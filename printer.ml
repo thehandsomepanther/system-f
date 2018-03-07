@@ -26,7 +26,9 @@ let rec type_to_sexp type_env = function
       S.List [S.Atom "all";
               S.List (List.map ~f:(fun s -> S.Atom s) tvs);
               type_to_sexp ((List.rev tvs) @ type_env) t]
-  | HoleT ->
+  | HoleT {contents = Some t} ->
+      type_to_sexp type_env t
+  | HoleT {contents = None} ->
       S.Atom "_"
 
 (* Prints a type as a string. *)

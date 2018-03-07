@@ -4,12 +4,13 @@ open Core
 type var = Var.t
 
 (* Types *)
+(* Invariant: refs in the HoleT must _NOT_ be shared. *)
 type typ = IntT
          | ArrT of typ list * typ
          | TupT of typ list
          | VarT of int
          | AllT of int * typ
-         | HoleT
+         | HoleT of typ option ref
 
 (* Expressions *)
 type exp =
@@ -32,7 +33,8 @@ let rec type_has_hole = function
   | TupT ts -> List.exists ts ~f:type_has_hole
   | VarT _ -> false
   | AllT (_, t) -> type_has_hole t
-  | HoleT -> true
+  | HoleT {contents = None} -> true
+  | HoleT {contents = Some t} -> type_has_hole t
 
 (* Computes the free variables of an expression. *)
 let rec fv e0 =
