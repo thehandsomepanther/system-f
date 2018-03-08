@@ -13,7 +13,7 @@ module S = Sexp
 let check_equal_any () = Testing.make_check_equal ~test_module:"Parser" ()
 
 let check_equal_t = Testing.make_check_equal ~test_module:"Parser"
-                                             ~to_string:Printer.type_to_string
+                                             ~to_string:string_of_type
                                              ()
 
 exception Bad_syntax of string * S.t

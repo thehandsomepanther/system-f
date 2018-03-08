@@ -27,6 +27,33 @@ type exp =
          | LAME of int * exp
          | APPE of exp * typ list
 
+module S = Sexp
+
+(* Converts a type to its s-expression representation. *)
+let rec sexp_of_sexp type_env = function
+  | IntT ->
+      S.Atom "int"
+  | ArrT(ts, tr) ->
+      S.List (S.Atom "->" :: List.map ~f:(sexp_of_sexp type_env) (ts @ [tr]))
+  | TupT ts ->
+      S.List (S.Atom "*" :: List.map ~f:(sexp_of_sexp type_env) ts)
+  | VarT n ->
+      (match List.nth type_env n with
+        | Some x -> S.Atom x
+        | None -> S.Atom ("?" ^ Int.to_string n))
+  | AllT (n, t) ->
+      let tvs = Var.fresh_n n (Var.Set.of_list type_env) in
+      S.List [S.Atom "all";
+              S.List (List.map ~f:(fun s -> S.Atom s) tvs);
+              sexp_of_sexp ((List.rev tvs) @ type_env) t]
+  | HoleT {contents = Some t} ->
+      sexp_of_sexp type_env t
+  | HoleT {contents = None} ->
+      S.Atom "_"
+
+(* Prints a type as a string. *)
+let string_of_type t = S.to_string_hum (sexp_of_sexp [] t)
+
 let rec type_has_hole = function
   | IntT -> false
   | ArrT (ts, tr) -> type_has_hole tr || List.exists ts ~f:type_has_hole
@@ -35,6 +62,32 @@ let rec type_has_hole = function
   | AllT (_, t) -> type_has_hole t
   | HoleT {contents = None} -> true
   | HoleT {contents = Some t} -> type_has_hole t
+
+(* Check if r appears anywhere in t (using physical equality) *)
+let ref_occurs_in r t =
+  let rec do_check = function
+    | IntT -> false
+    | ArrT (ts, tr) -> List.exists ~f:do_check (tr :: ts)
+    | TupT ts -> List.exists ~f:do_check ts
+    | VarT _ -> false
+    | AllT (_, t) -> do_check t
+    | HoleT r' ->
+        if phys_equal r r'
+        then true
+        else (match !r' with None -> false | Some t -> do_check t)
+  in do_check t
+
+(* Given a type without holes, remove all HoleT {contents = Some _} indirections. *)
+let rec normalize_complete_type = function
+  | IntT -> IntT
+  | ArrT (ts, tr) -> ArrT (List.map ~f:normalize_complete_type ts,
+                           normalize_complete_type tr)
+  | TupT ts -> TupT (List.map ~f:normalize_complete_type ts)
+  | VarT n -> VarT n
+  | AllT (n, t) -> AllT (n, normalize_complete_type t)
+  | HoleT {contents = Some t} -> normalize_complete_type t
+  | HoleT {contents = None} ->
+      failwith "got type with holes in normalize_complete_type"
 
 (* Computes the free variables of an expression. *)
 let rec fv e0 =

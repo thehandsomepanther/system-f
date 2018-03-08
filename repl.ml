@@ -1,7 +1,7 @@
 open Core
 
 let check_equal_t = Testing.make_check_equal ~test_module:"Repl"
-                                             ~to_string:Printer.type_to_string ()
+                                             ~to_string:Syntax.string_of_type ()
 
 let check_equal_any () = Testing.make_check_equal ~test_module:"Repl" ()
 
@@ -34,8 +34,8 @@ let rec repl () =
   | None -> ()
   | Some e ->
       (try
-        let t = Check.tc_infer (0 , Env.empty) e in
-        print_string (" : " ^ Printer.type_to_string t ^ "\n");
+        let t = Syntax.normalize_complete_type (Check.tc_infer (0 , Env.empty) e) in
+        print_string (" : " ^ Syntax.string_of_type t ^ "\n");
         let v = Eval.eval Env.empty e in
         print_string ("-> " ^ Eval.string_of_value v ^ "\n");
       with Check.Type_error msg ->

@@ -4,11 +4,11 @@ open Syntax
 exception Type_error of string
 
 let check_equal_t = Testing.make_check_equal ~test_module:"Check"
-                                             ~to_string:Printer.type_to_string ()
+                                             ~to_string:Syntax.string_of_type ()
 
 (* Throws a type error contrasting what we got and expected. *)
 let got_exp got exp =
-  raise (Type_error ("got " ^ Printer.type_to_string got ^
+  raise (Type_error ("got " ^ Syntax.string_of_type got ^
                      " where " ^ exp ^ " expected"))
 
 let got_hole msg =
@@ -24,22 +24,14 @@ let assert_arr = function
   | ArrT _ -> ()
   | t      -> got_exp t "arrow type"
 
-(* Check that r does not appear anywhere in t (using physical equality) *)
+(* Assert that r does not appear anywhere in t (using physical equality) *)
 let assert_holes_not_shared_invariant r t =
-  let rec do_assert = function
-    | IntT -> ()
-    | ArrT (ts, tr) -> List.iter ~f:do_assert (tr :: ts)
-    | TupT ts -> List.iter ~f:do_assert ts
-    | VarT _ -> ()
-    | AllT (_, t) -> do_assert t
-    | HoleT r' ->
-        if phys_equal r r'
+    if ref_occurs_in r t
         then failwith ("Invariant is broken: the reference holding " ^
-                       Printer.type_to_string (HoleT r) ^
+                       string_of_type (HoleT r) ^
                        " appears in the type " ^
-                       Printer.type_to_string t)
-        else (match !r' with None -> () | Some t -> do_assert t)
-  in do_assert t
+                       string_of_type t)
+        else ()
 
 (* Asserts that two types are the same. *)
 let assert_same_type t1 t2 =
@@ -49,8 +41,8 @@ let assert_same_type t1 t2 =
     (* From now on, both sides are _not_ of form HoleT {contents = Some _} *)
     | HoleT ({contents = None}),       HoleT ({contents = None}) ->
        raise (Type_error ("cannot resolve type holes in " ^
-                          Printer.type_to_string t1 ^ " and " ^
-                          Printer.type_to_string t2))
+                          Syntax.string_of_type t1 ^ " and " ^
+                          Syntax.string_of_type t2))
     (* If the above pattern does not match, then at least one side is _not_
        of form (HoleT {contents = None}). Combining with the first two
        patterns, we know that at least one side is not (HoleT _). *)
@@ -71,14 +63,14 @@ let assert_same_type t1 t2 =
         do_assert (t1, t2)
     | _ ->
        raise (Type_error ("type mismatch: " ^
-                          Printer.type_to_string t1 ^ " ≠ " ^
-                          Printer.type_to_string t2))
+                          Syntax.string_of_type t1 ^ " ≠ " ^
+                          Syntax.string_of_type t2))
   in do_assert (t1, t2)
 
 let assert_complete_type ?(context = "") t =
   if type_has_hole t
   then got_hole (if String.is_empty context then "" else (context ^ ": ") ^
-                 Printer.type_to_string t)
+                 Syntax.string_of_type t)
   else ()
 
 let assert_same_len n ls =
@@ -117,16 +109,6 @@ let un_tup i = function
 let un_all = function
   | AllT (n, t) -> (n, t)
   | t -> got_exp t "universal type"
-
-let rec normalize_complete_type = function
-  | IntT -> IntT
-  | ArrT (ts, tr) -> ArrT (List.map ~f:normalize_complete_type ts,
-                           normalize_complete_type tr)
-  | TupT ts -> TupT (List.map ~f:normalize_complete_type ts)
-  | VarT n -> VarT n
-  | AllT (n, t) -> AllT (n, normalize_complete_type t)
-  | HoleT {contents = Some t} -> normalize_complete_type t
-  | HoleT {contents = None} -> got_hole "normalize_complete_type"
 
 (* shift_type tau depth shift
    shift_type (forall (0 -> 1))  0  5) = forall (0 -> 6)
@@ -175,9 +157,9 @@ let rec type_subst tau1 n tau =
     | HoleT {contents = Some t} ->
         type_subst t n tau
     | HoleT {contents = None} ->
-               got_hole ("type_subst (" ^ Printer.type_to_string tau1 ^
+               got_hole ("type_subst (" ^ Syntax.string_of_type tau1 ^
                          ") " ^ string_of_int n ^ " (" ^
-                         Printer.type_to_string tau ^ ")")
+                         Syntax.string_of_type tau ^ ")")
 
 let rec type_substs tau1 n ts =
     match (n, ts) with
@@ -249,7 +231,7 @@ and tc_infer (typevars_env , termvars_env as env) = function
        (* Invariant: t should always be a complete type. Types with holes
           should never make their way into the environment. *)
        | Some t -> assert_complete_type ~context:("the type of " ^ x) t;
-                   normalize_complete_type t
+                   t
        | None   -> raise (Type_error ("unbound variable: " ^ x)))
   | LetE(xes, body) ->
       tc_infer (infer_elided_type_and_extend env xes) body
@@ -365,7 +347,7 @@ let () =
                tc_check (0, Env.empty)
                   (LAME (1, LamE ([("y", HoleT (ref None))], VarE "y")))
                   t;
-               t)
+               normalize_complete_type t)
     (AllT (1, ArrT ([VarT 0], VarT 0)))
 
 let () =
@@ -375,5 +357,5 @@ let () =
                tc_check (0, Env.empty)
                  (LamE ([("x", HoleT (ref None))], VarE "x"))
                  t;
-               t)
-    (ArrT ([IntT], HoleT (ref (Some IntT))))
+               normalize_complete_type t)
+    (ArrT ([IntT], IntT))
