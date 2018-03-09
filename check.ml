@@ -15,12 +15,12 @@ let got_hole msg =
   raise (Type_error ("got type with holes in " ^ msg))
 
 (* Asserts that the given type is int. *)
-let assert_int = function
+let assert_int t0 = match view_type t0 with
   | IntT -> ()
   | t    -> got_exp t "int"
 
 (* Asserts that the given type is a function type. *)
-let assert_arr = function
+let assert_arr t0 = match view_type t0 with
   | ArrT _ -> ()
   | t      -> got_exp t "arrow type"
 
@@ -82,7 +82,7 @@ let assert_same_len n ls =
                             string_of_int (List.length ls)))
 
 (* Projects the `i`th element of a tuple type. *)
-let prj_tup t0 i = match t0 with
+let prj_tup t0 i = match view_type t0 with
   | TupT ts as t ->
       (match List.nth ts i with
        | Some t -> t
@@ -91,14 +91,14 @@ let prj_tup t0 i = match t0 with
   | t -> got_exp t "tuple type"
 
 (* Unpacks an arrow type of arity `i`. *)
-let un_arr i = function
+let un_arr i t0 = match view_type t0 with
   | ArrT(ts, tr) as t ->
       if i = List.length ts
       then (ts, tr)
       else got_exp t ("arrow of arity " ^ string_of_int i)
   | t -> got_exp t "arrow type"
 
-let un_tup i = function
+let un_tup i t0 = match view_type t0 with
   | TupT ts as t ->
       if i = List.length ts
       then ts
@@ -106,7 +106,7 @@ let un_tup i = function
   | t -> got_exp t "tuple type"
 
 (* Unpacks an universal type. *)
-let un_all = function
+let un_all t0 = match view_type t0 with
   | AllT (n, t) -> (n, t)
   | t -> got_exp t "universal type"
 

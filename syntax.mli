@@ -28,6 +28,7 @@ type exp =
          | APPE of exp * typ list
 
 val string_of_type : typ -> string
+val view_type : typ -> typ
 val type_has_hole : typ -> bool
 val ref_occurs_in : typ option ref -> typ -> bool
 val normalize_complete_type : typ -> typ

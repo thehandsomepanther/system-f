@@ -54,6 +54,11 @@ let rec sexp_of_sexp type_env = function
 (* Prints a type as a string. *)
 let string_of_type t = S.to_string_hum (sexp_of_sexp [] t)
 
+(* Reveal the outtermost constructor, quotient HoleT links *)
+let rec view_type = function
+  | HoleT {contents = Some t} -> view_type t
+  | t -> t
+
 let rec type_has_hole = function
   | IntT -> false
   | ArrT (ts, tr) -> type_has_hole tr || List.exists ts ~f:type_has_hole
