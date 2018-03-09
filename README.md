@@ -51,7 +51,6 @@ $ coretop
 #mod_use "env.ml";;
 #mod_use "syntax.ml";;
 #mod_use "printer.ml";;
-#mod_use "parser.ml";;
 #use "check.ml";;
 ```
 

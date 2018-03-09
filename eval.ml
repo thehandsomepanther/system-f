@@ -24,6 +24,9 @@ let string_of_value v =
     | TypV -> B.add_string buf "#<type>"
   in loop v; B.contents buf
 
+let check_equal_v = Testing.make_check_equal ~test_module:"Eval"
+                                             ~to_string:string_of_value ()
+
 (* Exception thrown in cases that should not be possible in well-typed
  * programs. *)
 exception Can't_happen of string
@@ -65,6 +68,15 @@ let rec eval env = function
               eval env body
          | _ -> raise (Can't_happen "closure expected"))
   | FixE(x, (ArrT(ts, _) as t), e) ->
+      (*
+        Fix runs by evaluating the body in an environment where x
+        is extended with the definition of the fix itself.
+        To put the fix in the environment, we need to η-expand it
+        to delay the evaluation and make the fix expression a value.
+
+           (fix x (t1 ... tn → tr) e)
+        ~> e [x := λ y1...yn. (fix x (t1 ... tn -> tr) e) y1 ... yn]
+      *)
       let ys = Var.fresh_n (List.length ts) (fv e) in
       let v = CloV(env, ys,
                    AppE(FixE(x, t, e), List.map ~f:(fun x -> VarE x) ys)) in
@@ -81,3 +93,24 @@ let rec eval env = function
              let env = Env.extend_lists env xs (List.map ~f:(fun _ -> TypV) ts) in
              eval env body
          | _ -> raise (Can't_happen "closure expected"))
+
+let () =
+  check_equal_v ~name:"eval var lookup"
+    (fun () ->
+      eval
+        (Env.extend
+          (Env.extend
+            (Env.extend Env.empty "x" (IntV 12))
+            "y" (IntV 9))
+          "x" (IntV 814))
+          (VarE "x"))
+    (IntV 814)
+
+let () =
+  check_equal_v ~name:"eval let"
+    (fun () ->
+      eval
+        (Env.extend Env.empty "x" (IntV 88))
+        (LetE (["y", IntE 2, IntT; "x", IntE 5, IntT],
+          SubE (VarE "x", VarE "y"))))
+    (IntV 3)

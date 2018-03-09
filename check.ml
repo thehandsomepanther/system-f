@@ -332,7 +332,7 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
 
 let () =
   check_equal_t
-    ~name:"tc_check propagates type informations into lambdas"
+    ~name:"tc_check propagates type information into lambdas"
     (fun () -> let t = ArrT ([IntT], IntT) in
                tc_check (0, Env.empty)
                  (LamE ([("x", HoleT (ref None))], VarE "x"))
@@ -342,7 +342,7 @@ let () =
 
 let () =
   check_equal_t
-    ~name:"tc_check propagates type informations into Lambdas"
+    ~name:"tc_check propagates type information into Lambdas"
     (fun () -> let t = AllT (1, ArrT ([VarT 0], VarT 0)) in
                tc_check (0, Env.empty)
                   (LAME (1, LamE ([("y", HoleT (ref None))], VarE "y")))
@@ -352,7 +352,7 @@ let () =
 
 let () =
   check_equal_t
-    ~name:"tc_check propagates type informations back from lambda body"
+    ~name:"tc_check propagates type information back from lambda body"
     (fun () -> let t = ArrT ([IntT], HoleT (ref None)) in
                tc_check (0, Env.empty)
                  (LamE ([("x", HoleT (ref None))], VarE "x"))

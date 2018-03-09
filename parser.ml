@@ -153,20 +153,27 @@ let rec expr_of_sexp type_env sexp0 =
 let expr_of_string s = expr_of_sexp [] (S.of_string s)
 
 let () =
-  check_equal_any () ~name:"expr_of_string  Lam(a). (lambda(x:a). x)"
+  check_equal_any () ~name:"expr_of_string  (Lam (a). (lambda (x:a). x))"
     (fun () -> expr_of_string "(Lam (a) (lam ((x a)) x))")
     (LAME (1, LamE (["x", VarT 0], VarE "x")))
 
 let () =
-  check_equal_any () ~name:"expr_of_string  (lambda(x:int  y:_). x)"
+  check_equal_any () ~name:"expr_of_string  (lambda (x:int  y:_). x)"
     (fun () -> expr_of_string "(lam ((x int)  y) x)")
-    (LamE ([("x", IntT); ("y", HoleT {contents = None})], VarE "x"))
+    (LamE ([("x", IntT); ("y", HoleT (ref None))], VarE "x"))
+
+let () =
+  check_equal_any () ~name:"expr_of_string  (Lam (a b). (let ((fst (lambda ((x a) (y b)) x)) fst)))"
+    (fun () -> expr_of_string "(Lam (a b) (let ((fst (lam ((x a) (y b)) x))) fst))")
+    (LAME (2, LetE (["fst", LamE (["x", VarT 1; "y", VarT 0],
+                              VarE "x"), HoleT (ref None)],
+                VarE "fst")))
 
 let () =
   check_equal_any () ~name:"expr_of_string  (let ((f (lam (x) x) (-> int int))) 0)"
     (fun () -> expr_of_string "(let ((f (lam (x) x) (-> int int))) 0)")
     (LetE (["f",
-            LamE (["x", HoleT {contents = None}], VarE "x"),
+            LamE (["x", HoleT (ref None)], VarE "x"),
             ArrT ([IntT], IntT)],
       IntE 0))
 
