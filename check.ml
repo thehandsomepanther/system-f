@@ -280,7 +280,8 @@ and tc_infer (typevars_env , termvars_env as env) = function
       ArrT(List.map ~f:snd xts, tr)
   | AppE(HoleE e0, es) as e ->
       (match view_type (tc_infer env (!e0)) with
-        | AllT (n, ArrT(ts1, tr1)) -> let tas = List.map ~f:(tc_infer env) es in
+        | AllT (n, ArrT(ts1, tr1)) ->
+            let tas = List.map ~f:(tc_infer env) es in
             let holes = gen_holes n in
             let ts2 = List.map ~f:(inst_all holes 0) ts1 in
             let tr2 = inst_all holes 0 tr1 in
@@ -292,7 +293,7 @@ and tc_infer (typevars_env , termvars_env as env) = function
                              Syntax.string_of_type (AllT (n, ArrT(ts1, tr1))) ^
                              " to " ^
                              String.concat ~sep:", " (List.rev_map ~f:Syntax.string_of_type holes)));
-            e0 := APPE((!e0), holes);
+            e0 := APPE((!e0), List.rev holes);
             (* Just sanity check; should not go in to infinite loop since
                we have instantiated the type parameters. *)
             tc_infer env e
