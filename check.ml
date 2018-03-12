@@ -25,9 +25,9 @@ let assert_arr t0 = match view_type t0 with
   | t      -> got_exp t "arrow type"
 
 (* Assert that r does not appear anywhere in t (using physical equality) *)
-let assert_holes_not_shared_invariant r t =
+let assert_holes_not_occurs_in r t =
     if ref_occurs_in r t
-        then failwith ("Invariant is broken: the reference holding " ^
+        then failwith ("Occurrence check failed: the reference holding " ^
                        string_of_type (HoleT r) ^
                        " appears in the type " ^
                        string_of_type t)
@@ -47,10 +47,10 @@ let assert_same_type t1 t2 =
        of form (HoleT {contents = None}). Combining with the first two
        patterns, we know that at least one side is not (HoleT _). *)
     | HoleT ({contents = None} as r1), t2 ->
-        assert_holes_not_shared_invariant r1 t2;
+        assert_holes_not_occurs_in r1 t2;
         r1 := Some t2
     | t1,                              HoleT ({contents = None} as r2) ->
-        assert_holes_not_shared_invariant r2 t1;
+        assert_holes_not_occurs_in r2 t1;
         r2 := Some t1
     | IntT, IntT -> ()
     | ArrT (ts1, tr1), ArrT (ts2, tr2) when List.length ts1 = List.length ts2 ->
@@ -233,7 +233,7 @@ let rec infer_elided_type_and_extend (typevars_env , termvars_env as env) xets =
   let xts = List.map xets
               ~f:(fun (x, e, t) ->
                    tc_check env e t;
-                   assert_complete_type t;
+                   assert_complete_type ~context:("the type of let-binding " ^ x) t;
                    (x, t)) in
   let termvars_env' = Env.extend_list termvars_env xts in
   (typevars_env, termvars_env')
@@ -278,14 +278,24 @@ and tc_infer (typevars_env , termvars_env as env) = function
       let termvars_env' = Env.extend_list termvars_env xts in
       let tr   = tc_infer (typevars_env , termvars_env') body in
       ArrT(List.map ~f:snd xts, tr)
-  | AppE(HoleE e0, es) ->
+  | AppE(HoleE e0, es) as e ->
       (match view_type (tc_infer env (!e0)) with
         | AllT (n, ArrT(ts1, tr1)) -> let tas = List.map ~f:(tc_infer env) es in
             let holes = gen_holes n in
             let ts2 = List.map ~f:(inst_all holes 0) ts1 in
-            List.iter2_exn ~f:(assert_same_type) ts2 tas;
+            let tr2 = inst_all holes 0 tr1 in
+            let tr  = HoleT (ref None) in
+            assert_same_type (ArrT (ts2, tr2)) (ArrT (tas, tr));
+            List.iter holes
+              ~f:(assert_complete_type
+                   ~context:("inferred type application of " ^
+                             Syntax.string_of_type (AllT (n, ArrT(ts1, tr1))) ^
+                             " to " ^
+                             String.concat ~sep:", " (List.rev_map ~f:Syntax.string_of_type holes)));
             e0 := APPE((!e0), holes);
-            inst_all holes 0 tr1
+            (* Just sanity check; should not go in to infinite loop since
+               we have instantiated the type parameters. *)
+            tc_infer env e
         | t0 ->
             let (tas, tr) = un_arr (List.length es) t0 in
             let _         = List.map2_exn ~f:(tc_check env) es tas in
@@ -344,7 +354,7 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
       let termvars_env' = Env.extend_list termvars_env xts in
       tc_check (typevars_env , termvars_env') body tr
   | FixE(x, HoleT ({contents = None} as r), e), typ ->
-      assert_holes_not_shared_invariant r typ;
+      assert_holes_not_occurs_in r typ;
       r := Some typ;
       assert_arr typ;
       let termvars_env' = Env.extend termvars_env x typ in

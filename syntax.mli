@@ -4,7 +4,6 @@ open Core
 type var = Var.t
 
 (* Types *)
-(* Invariant: refs in the HoleT must _NOT_ be shared. *)
 type typ = IntT
          | ArrT of typ list * typ
          | TupT of typ list

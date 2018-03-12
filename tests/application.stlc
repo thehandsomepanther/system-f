@@ -3,3 +3,22 @@
 
 (let ((id (Lam (a b) (lam ((x a) (f (-> a b))) (f x)))))
        (id 5 (lam ((x int)) (- x 10))))
+
+(let ((id (Lam (a) (lam (x) x))
+          (all (t) (-> t t))))
+  (((id id) id) id))
+
+;; error: type does not match (snd and 8)
+(let ((fst (Lam (a) (lam (x y) x))
+           (all (a) (-> a a a)))
+      (snd (Lam (a) (lam (x y) y))
+           (all (a) (-> a a a))))
+  (fst snd 8))
+
+;; error: unsolved type holes
+(let ((ignored (Lam (r s) (lam (x) (lam (y) y)))
+               (all (a b) (-> a (-> b b)))))
+   (ignored 8))
+
+(lam ((id (all (r) (-> r r))))
+  (((id id) id) id))

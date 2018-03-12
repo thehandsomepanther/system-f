@@ -2,4 +2,8 @@
 -> 5
 >  : int
 -> -5
+>  : (all (a) (-> a a))
+-> #<function>
+> > >  : (-> (all (a) (-> a a)) (all (a) (-> a a)))
+-> #<function>
 > 
