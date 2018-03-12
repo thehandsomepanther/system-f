@@ -26,6 +26,7 @@ type exp =
          | FixE of var * typ * exp
          | LAME of int * exp
          | APPE of exp * typ list
+         | HoleE of exp ref
 
 val string_of_type : typ -> string
 val view_type : typ -> typ

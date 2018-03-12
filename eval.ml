@@ -93,6 +93,8 @@ let rec eval env = function
              let env = Env.extend_lists env xs (List.map ~f:(fun _ -> TypV) ts) in
              eval env body
          | _ -> raise (Can't_happen "closure expected"))
+  | HoleE e ->
+      eval env (!e)
 
 let () =
   check_equal_v ~name:"eval var lookup"

@@ -1,0 +1,5 @@
+(let ((id (Lam (a) (lam ((x a)) x))))
+       (id 5))
+
+(let ((id (Lam (a b) (lam ((x a) (f (-> a b))) (f x)))))
+       (id 5 (lam ((x int)) (- x 10))))

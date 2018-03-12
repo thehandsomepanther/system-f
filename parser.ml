@@ -147,7 +147,7 @@ let rec expr_of_sexp type_env sexp0 =
       | S.Atom "@" :: e :: ts ->
           APPE(expr_of_sexp type_env e, List.map ~f:(type_of_sexp type_env) ts)
       | e0 :: es ->
-          AppE(expr_of_sexp type_env e0, List.map ~f:(expr_of_sexp type_env) es)
+          AppE(HoleE(ref (expr_of_sexp type_env e0)), List.map ~f:(expr_of_sexp type_env) es)
 
 (* Parses an expression from a string, via s-expression. *)
 let expr_of_string s = expr_of_sexp [] (S.of_string s)

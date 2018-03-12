@@ -110,6 +110,21 @@ let un_all t0 = match view_type t0 with
   | AllT (n, t) -> (n, t)
   | t -> got_exp t "universal type"
 
+(* Generates a list of n HoleEs *)
+let gen_holes n = List.init n ~f:(fun _ -> HoleT(ref None))
+
+let rec inst_all holes n = function
+  | IntT -> IntT
+  | ArrT (ts, tr) -> ArrT(List.map ~f:(inst_all holes n) ts, (inst_all holes n) tr)
+  | TupT ts -> TupT(List.map ~f:(inst_all holes n) ts)
+  | VarT m ->
+      if m < n
+      then VarT(m)
+      else List.nth_exn holes (m - n)
+  | AllT (m, t) -> AllT(n, inst_all holes (n + m) t)
+  | HoleT {contents = Some t} -> inst_all holes n t
+  | HoleT {contents = None} -> got_hole "inst_all"
+
 (* shift_type tau depth shift
    shift_type (forall (0 -> 1))  0  5) = forall (0 -> 6)
    shift_type (AllT (ArrT ([VarT 0], VarT 1))) 0 5
@@ -263,6 +278,18 @@ and tc_infer (typevars_env , termvars_env as env) = function
       let termvars_env' = Env.extend_list termvars_env xts in
       let tr   = tc_infer (typevars_env , termvars_env') body in
       ArrT(List.map ~f:snd xts, tr)
+  | AppE(HoleE e0, es) ->
+      (match view_type (tc_infer env (!e0)) with
+        | AllT (n, ArrT(ts1, tr1)) -> let tas = List.map ~f:(tc_infer env) es in
+            let holes = gen_holes n in
+            let ts2 = List.map ~f:(inst_all holes 0) ts1 in
+            List.iter2_exn ~f:(assert_same_type) ts2 tas;
+            e0 := APPE((!e0), holes);
+            inst_all holes 0 tr1
+        | t0 ->
+            let (tas, tr) = un_arr (List.length es) t0 in
+            let _         = List.map2_exn ~f:(tc_check env) es tas in
+            tr)
   | AppE(e0, es) ->
       let (tas, tr) = un_arr (List.length es) (tc_infer env e0) in
       let _         = List.map2_exn ~f:(tc_check env) es tas in
@@ -285,6 +312,8 @@ and tc_infer (typevars_env , termvars_env as env) = function
       let (n, tau1) = un_all tall in
       assert_same_len n ts;
       type_substs tau1 (n-1) ts
+  | HoleE e ->
+      tc_infer env (!e)
 
 (* Type check the given term against the given type in the given environment.
    Return the new type with all type holes filled up. *)
@@ -326,6 +355,8 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
           then tc_check (n+typevars_env, termvars_env) e t
           else got_exp typ
                        ("Lam that takes " ^ string_of_int m ^ " type variables")
+  | HoleE e, typ ->
+      tc_check env (!e) typ
   | exp, typ ->
       let typ' = tc_infer env exp in
       assert_same_type typ typ'

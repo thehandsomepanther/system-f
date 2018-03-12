@@ -26,6 +26,7 @@ type exp =
          | FixE of var * typ * exp
          | LAME of int * exp
          | APPE of exp * typ list
+         | HoleE of exp ref
 
 module S = Sexp
 
@@ -112,3 +113,4 @@ let rec fv e0 =
   | FixE(x, _, e) -> Set.remove (fv e) x
   | LAME (_, e) -> fv e
   | APPE (e, _) -> fv e
+  | HoleE e -> fv (!e)
