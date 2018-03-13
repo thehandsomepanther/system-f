@@ -1,0 +1,62 @@
+;; This test is intended to check type variable substitution implementation
+;; to see if types are correctly implemented using de Bruijn indices.
+
+;; We try to instantiate ∀ a b. a → b → A * B * a
+;; with a = ∀ t. t → A
+;;      b = B
+;; in the context ∀ A. A → ∀ B. B → _.
+;;
+;; That is,
+;;   ∀ A. A → ∀ B. B → (a → b → (A * B * a))[a := (∀ t. t → A), b := B]
+;; The correct answer is
+;;   ∀ A. A → ∀ B. B → (∀ t. t → A) → B → A * B * (∀ t. t → A)
+;;
+;; In de Bruijn indices, this is
+;;   ∀ _. 0 → ∀ _. 0 → (1 → 0 → (3 * 2 * 1))[1 := (∀ _. _ → 4), 0 := 2]
+;; = ∀ _. 0 → ∀ _. 0 → (∀ _. 0 → 2) → 1 → 2 * 1 * (∀ _. 0 → 2)
+
+;; check the type of get-u
+(Lam (A)
+  (lam ((u A))
+    (let (;; get-u : ∀ t. t → A
+          (get-u (Lam (t) (lam ((y t)) u))))
+      (Lam (B)
+        (lam ((v B))
+          (let (;; fst-v : ∀ a b. a → b → A * B * b
+                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
+            get-u))))))
+
+;; check the type of fst-v
+(Lam (A)
+  (lam ((u A))
+    (let (;; get-u : ∀ t. t → A
+          (get-u (Lam (t) (lam ((y t)) u))))
+      (Lam (B)
+        (lam ((v B))
+          (let (;; fst-v : ∀ a b. a → b → A * B * b
+                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
+            fst-v))))))
+
+;; check the type of an instantiation of fst-v
+(Lam (A)
+  (lam ((u A))
+    (let (;; get-u : ∀ t. t → A
+          (get-u (Lam (t) (lam ((y t)) u))))
+      (Lam (B)
+        (lam ((v B))
+          (let (;; fst-v : ∀ a b. a → b → A * B * b
+                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
+            (@ fst-v (all (s) (-> s A)) B)))))))
+
+;; the result should be the same of get-u
+(Lam (A)
+  (lam ((u A))
+    (let (;; get-u : ∀ t. t → A
+          (get-u (Lam (t) (lam ((y t)) u))))
+      (Lam (B)
+        (lam ((v B))
+          (let (;; fst-v : ∀ a b. a → b → A * B * b
+                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
+            (((@ fst-v (all (s) (-> s A)) B)
+              get-u)
+             v)))))))

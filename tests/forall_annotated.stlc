@@ -6,4 +6,30 @@
 
 (@ (Lam (a) (lam ((x a)) x)) int)
 
+(let ((id (Lam (a) (lam ((x a)) x))))
+  (@ id int))
+
+(let ((id (Lam (a) (lam ((x a)) x))))
+  (@ id (-> int int)))
+
+;; error: forgot to instantiate the second id
+(let ((id (Lam (a) (lam ((x a)) x))))
+  (  (@ id (-> int int))
+     id  ))
+
+;; ok
+(let ((id (Lam (a) (lam ((x a)) x))))
+  (  (@ id (-> int int))
+     (@ id int)  ))
+
+;; ok
 (Lam (p) (lam ((x p)) (Lam (q) (lam ((f (-> p q))) (f x)))))
+
+;; error: cannot apply a function of type (-> q p) to a value of type p
+(Lam (p) (lam ((x p)) (Lam (q) (lam ((f (-> q p))) (f x)))))
+
+(Lam (A)
+  (lam ((u A))
+    (Lam (B)
+      (lam ((v B))
+        (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))))

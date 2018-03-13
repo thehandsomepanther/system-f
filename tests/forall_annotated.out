@@ -6,6 +6,14 @@
 -> #<function>
 >  : (-> int int)
 -> #<function>
+>  : (-> int int)
+-> #<function>
+>  : (-> (-> int int) (-> int int))
+-> #<function>
+> >  : (-> int int)
+-> #<function>
 >  : (all (a) (-> a (all (a0) (-> (-> a a0) a0))))
+-> #<function>
+> >  : (all (a) (-> a (all (a0) (-> a0 (all (a1 b) (-> a1 (-> b (* a a0 a1))))))))
 -> #<function>
 > 

@@ -8,6 +8,6 @@
 -> #<function>
 >  : (all (a) (-> a int))
 -> #<function>
->  : (all (a) (-> a int))
+> >  : (all (a) (-> a int))
 -> #<function>
 > 

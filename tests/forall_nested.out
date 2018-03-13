@@ -1,0 +1,12 @@
+>  : (all (a) (-> a (all (a0) (-> a0 (all (a1) (-> a1 a))))))
+-> #<function>
+>  : (all (a) (-> a (all (a0) (-> a0 (all (a1 b) (-> a1 (-> b (* a a0 a1))))))))
+-> #<function>
+>  : (all (a)
+ (-> a
+  (all (a0)
+   (-> a0 (-> (all (a1) (-> a1 a)) (-> a0 (* a a0 (all (a1) (-> a1 a)))))))))
+-> #<function>
+>  : (all (a) (-> a (all (a0) (-> a0 (* a a0 (all (a1) (-> a1 a)))))))
+-> #<function>
+> 

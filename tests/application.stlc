@@ -24,11 +24,17 @@
   (((id id) id) id))
 
 
+;; ok
 (let ((ap (Lam (p q) (lam (x f) (f x)))
           (all (a b) (-> a (-> a b) _))))
   (ap 5 (lam ((r int)) (Lam (a) (lam ((t a)) r)))))
 
+;; error: cannot infer what be should be
+(let ((ap (Lam (p q) (lam (x) (lam (f) (f x))))
+          (all (a b) (-> a (-> (-> a b) _)))))
+  ((ap 5) (lam ((r int)) (Lam (a) (lam ((t a)) r)))))
 
+;; ok: defer the instantiation of b
 (let ((ap (Lam (p) (lam (x) (Lam (q) (lam (f) (f x)))))
                    (all (a) (-> a (all (b) (-> (-> a b) b))))))
   ((ap 5) (lam ((r int)) (Lam (a) (lam ((t a)) r)))))
