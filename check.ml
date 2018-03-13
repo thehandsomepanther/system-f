@@ -315,7 +315,9 @@ and tc_infer (typevars_env , termvars_env as env) = function
       assert_same_type t t';
       t
   | LAME (n, e) ->
-      let t = tc_infer (n+typevars_env, termvars_env) e in
+      let termvars_env' =
+        Env.map (fun t -> shift_type t 0 1) termvars_env in
+      let t = tc_infer (n+typevars_env, termvars_env') e in
       AllT (n, t)
   | APPE (e, ts) ->
       List.iter ts ~f:(kc typevars_env);
@@ -363,7 +365,10 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
   | LAME (n, e), typ ->
       let (m, t) = un_all typ in
       if n = m
-          then tc_check (n+typevars_env, termvars_env) e t
+          then
+            let termvars_env' =
+              Env.map (fun t -> shift_type t 0 1) termvars_env in
+            tc_check (n+typevars_env, termvars_env') e t
           else got_exp typ
                        ("Lam that takes " ^ string_of_int m ^ " type variables")
   | HoleE e, typ ->

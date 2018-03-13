@@ -12,6 +12,8 @@ exception Unbound_variable of var
 
 let empty = []
 
+let map g xs = List.map ~f:(fun (x, v) -> (x, g v)) xs
+
 let rec lookup env x = match env with
   | [] -> None
   | (y, v) :: rest -> if x = y then Some v else lookup rest x
