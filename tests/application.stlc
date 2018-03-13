@@ -22,3 +22,13 @@
 
 (lam ((id (all (r) (-> r r))))
   (((id id) id) id))
+
+
+(let ((ap (Lam (p q) (lam (x f) (f x)))
+          (all (a b) (-> a (-> a b) _))))
+  (ap 5 (lam ((r int)) (Lam (a) (lam ((t a)) r)))))
+
+
+(let ((ap (Lam (p) (lam (x) (Lam (q) (lam (f) (f x)))))
+                   (all (a) (-> a (all (b) (-> (-> a b) b))))))
+  ((ap 5) (lam ((r int)) (Lam (a) (lam ((t a)) r)))))

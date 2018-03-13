@@ -8,3 +8,11 @@
 
 (let ((id2 (Lam (a) (lam ((x a)) x))))
   id2)
+
+(let ((ap (Lam (p) (lam (x) (Lam (q) (lam (f) (f x)))))
+          (all (a) (-> a (all (b) (-> (-> a b) b))))))
+  ap)
+
+(let ((ap (Lam (p) (lam (x) (Lam (q) (lam ((f (-> p q))) (f x)))))
+          (all (a) (-> a (all (b) _)))))
+  ap)

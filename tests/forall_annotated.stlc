@@ -5,3 +5,5 @@
 (Lam (a) (lam ((x a)) x))
 
 (@ (Lam (a) (lam ((x a)) x)) int)
+
+(Lam (p) (lam ((x p)) (Lam (q) (lam ((f (-> p q))) (f x)))))
