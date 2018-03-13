@@ -69,7 +69,7 @@ let assert_same_type t1 t2 =
 
 let assert_complete_type ?(context = "") t =
   if type_has_hole t
-  then got_hole (if String.is_empty context then "" else (context ^ ": ") ^
+  then got_hole ((if String.is_empty context then "" else (context ^ ": ")) ^
                  Syntax.string_of_type t)
   else ()
 
