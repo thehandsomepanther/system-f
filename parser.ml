@@ -187,3 +187,13 @@ let () =
     (LAME (2,
       LamE (["k", AllT (1, ArrT ([ArrT ([VarT 2], VarT 0)], VarT 0))],
        APPE (VarE "k", [VarT 0]))))
+
+let () =
+  check_equal_any ()
+    ~name:"Lam a. (lam ([x a])  (Lam b. (lam ([y b]) x)))"
+    (fun () -> expr_of_string
+                 ("(Lam (a)" ^
+                  "  (lam ((x a))" ^
+                  "    (Lam (b)" ^
+                  "      (lam ((y b)) x))))"))
+    (LAME (1, LamE (["x", VarT 0], LAME (1, LamE (["y", VarT 0], VarE "x")))))

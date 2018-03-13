@@ -50,7 +50,6 @@ $ coretop
 #mod_use "testing.ml";;
 #mod_use "env.ml";;
 #mod_use "syntax.ml";;
-#mod_use "printer.ml";;
 #use "check.ml";;
 ```
 

@@ -12,7 +12,7 @@ exception Unbound_variable of var
 
 let empty = []
 
-let map g xs = List.map ~f:(fun (x, v) -> (x, g v)) xs
+let map g xs = List.map ~f:(fun (x, v) -> (x, g x v)) xs
 
 let rec lookup env x = match env with
   | [] -> None

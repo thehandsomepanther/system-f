@@ -316,7 +316,7 @@ and tc_infer (typevars_env , termvars_env as env) = function
       t
   | LAME (n, e) ->
       let termvars_env' =
-        Env.map (fun t -> shift_type t 0 1) termvars_env in
+        Env.map (fun _ t -> shift_type t 0 1) termvars_env in
       let t = tc_infer (n+typevars_env, termvars_env') e in
       AllT (n, t)
   | APPE (e, ts) ->
@@ -367,7 +367,7 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
       if n = m
           then
             let termvars_env' =
-              Env.map (fun t -> shift_type t 0 1) termvars_env in
+              Env.map (fun _ t -> shift_type t 0 1) termvars_env in
             tc_check (n+typevars_env, termvars_env') e t
           else got_exp typ
                        ("Lam that takes " ^ string_of_int m ^ " type variables")
@@ -406,3 +406,35 @@ let () =
                  t;
                normalize_complete_type t)
     (ArrT ([IntT], IntT))
+
+let () =
+  check_equal_t
+    ~name:"tc_infer correctly opens a term inside big Lambda"
+    (fun () ->
+      tc_infer (0, Env.empty)
+        (LAME (1,
+          LamE (["x", VarT 0],
+            LAME (1,
+              LamE (["y", VarT 0],
+                VarE "x"))))))
+    (* This is the representation of type ∀ α. α → ∀ β. β → α,
+       the 'delayed' versino of ∀ α β. α → β → α *)
+    (AllT (1, ArrT ([VarT 0], AllT (1, (ArrT ([VarT 0], VarT 1))))))
+
+let () =
+  (* The tc_check version of the tc_infer test above. *)
+  check_equal_t
+    ~name:"tc_check correctly opens a term inside big Lambda"
+    (fun () ->
+      let t = AllT (1,
+                ArrT ([VarT 0], AllT (1,
+                                  (ArrT ([VarT 0], HoleT (ref None)))))) in
+      tc_check (0, Env.empty)
+        (LAME (1,
+          LamE (["x", HoleT (ref None)],
+            LAME (1,
+              LamE (["y", HoleT (ref None)],
+                VarE "x")))))
+        t;
+      normalize_complete_type t)
+    (AllT (1, ArrT ([VarT 0], AllT (1, (ArrT ([VarT 0], VarT 1))))))

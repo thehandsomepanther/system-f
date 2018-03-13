@@ -17,7 +17,8 @@ val empty : 'a t
 (* Looks up a variable in an environment. *)
 val lookup : 'a t -> var -> 'a option
 
-val map : ('a -> 'b) -> 'a t -> 'b t
+(* Maps over the elements in the environment *)
+val map : (var -> 'a -> 'b) -> 'a t -> 'b t
 
 (* Looks up a variable in an environment, throwing UnboundVariable if
   * not found. *)
