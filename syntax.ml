@@ -113,3 +113,30 @@ let rec fv e0 =
   | LAME (_, e) -> fv e
   | APPE (e, _) -> fv e
   | HoleE e -> fv (!e)
+
+let rec normalize_expr = function
+| VarE x -> VarE x
+| LetE (xes, body) ->
+    LetE (List.map ~f:(fun (x, e, t) -> x, normalize_expr e, t) xes,
+          normalize_expr body)
+| IntE n -> IntE n
+| SubE (e1, e2) ->
+    SubE (normalize_expr e1, normalize_expr e2)
+| If0E (e1, e2, e3) ->
+    If0E (normalize_expr e1, normalize_expr e2, normalize_expr e3)
+| TupE es ->
+    TupE (List.map ~f:normalize_expr es)
+| PrjE (e, ix) ->
+    PrjE (normalize_expr e, ix)
+| LamE (xts, body) ->
+    LamE (xts, normalize_expr body)
+| AppE (e0, es) ->
+    AppE (normalize_expr e0, List.map ~f:normalize_expr es)
+| FixE (x, t, e) ->
+    FixE (x, t, normalize_expr e)
+| LAME (n, e) ->
+    LAME (n, normalize_expr e)
+| APPE (e, ts) ->
+    APPE (normalize_expr e, ts)
+| HoleE {contents = e} ->
+    normalize_expr e

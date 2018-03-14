@@ -177,8 +177,10 @@ let rec expr_of_sexp type_env sexp0 =
                    with Failure _ -> stx_err "integer" (S.Atom ix) in
           PrjE(expr_of_sexp type_env e, ix)
       | [S.Atom "lam"; S.List bindings; body] ->
-          LamE(bindings_of_lam_vars (type_of_sexp type_env) bindings,
-               expr_of_sexp type_env body)
+          HoleE
+            (ref
+              (LamE(bindings_of_lam_vars (type_of_sexp type_env) bindings,
+                    expr_of_sexp type_env body)))
       | [S.Atom "fix"; S.Atom x; t; e] ->
           assert_not_keyword x;
           FixE(x, type_of_sexp type_env t, expr_of_sexp type_env e)
@@ -199,24 +201,32 @@ let expr_of_string s = expr_of_sexp [] (S.of_string s)
 
 let () =
   check_equal_any () ~name:"expr_of_string  (Lam (a). (lambda (x:a). x))"
-    (fun () -> expr_of_string "(Lam (a) (lam ((x a)) x))")
+    (fun () ->
+       let e = expr_of_string "(Lam (a) (lam ((x a)) x))"
+       in normalize_expr e)
     (LAME (1, LamE (["x", VarT 0], VarE "x")))
 
 let () =
   check_equal_any () ~name:"expr_of_string  (lambda (x:int  y:_). x)"
-    (fun () -> expr_of_string "(lam ((x int)  y) x)")
+    (fun () ->
+       let e = expr_of_string "(lam ((x int)  y) x)"
+       in normalize_expr e)
     (LamE ([("x", IntT); ("y", HoleT (ref None))], VarE "x"))
 
 let () =
   check_equal_any () ~name:"expr_of_string  (Lam (a b). (let ((fst (lambda ((x a) (y b)) x)) fst)))"
-    (fun () -> expr_of_string "(Lam (a b) (let ((fst (lam ((x a) (y b)) x))) fst))")
+    (fun () ->
+       let e = expr_of_string "(Lam (a b) (let ((fst (lam ((x a) (y b)) x))) fst))"
+       in normalize_expr e)
     (LAME (2, LetE (["fst", LamE (["x", VarT 1; "y", VarT 0],
                               VarE "x"), HoleT (ref None)],
                 VarE "fst")))
 
 let () =
   check_equal_any () ~name:"expr_of_string  (let ((f (lam (x) x) (-> int int))) 0)"
-    (fun () -> expr_of_string "(let ((f (lam (x) x) (-> int int))) 0)")
+    (fun () ->
+       let e = expr_of_string "(let ((f (lam (x) x) (-> int int))) 0)"
+       in normalize_expr e)
     (LetE (["f",
             LamE (["x", HoleT (ref None)], VarE "x"),
             ArrT ([IntT], IntT)],
@@ -225,10 +235,12 @@ let () =
 let () =
   check_equal_any ()
     ~name:"Lam(a,r). (lam ([k : all(s). (a -> s) -> s])   k [r])"
-    (fun () -> expr_of_string
+    (fun () ->
+       let e = expr_of_string
                   ("(Lam (a r) " ^
                    "   (lam ((k (all (s) (-> (-> a s) s))))" ^
-                   "      (@ k r)))"))
+                   "      (@ k r)))")
+       in normalize_expr e)
     (LAME (2,
       LamE (["k", AllT (1, ArrT ([ArrT ([VarT 2], VarT 0)], VarT 0))],
        APPE (VarE "k", [VarT 0]))))
@@ -236,9 +248,11 @@ let () =
 let () =
   check_equal_any ()
     ~name:"Lam a. (lam ([x a])  (Lam b. (lam ([y b]) x)))"
-    (fun () -> expr_of_string
+    (fun () ->
+       let e = expr_of_string
                  ("(Lam (a)" ^
                   "  (lam ((x a))" ^
                   "    (Lam (b)" ^
-                  "      (lam ((y b)) x))))"))
+                  "      (lam ((y b)) x))))")
+       in normalize_expr e)
     (LAME (1, LamE (["x", VarT 0], LAME (1, LamE (["y", VarT 0], VarE "x")))))

@@ -33,3 +33,4 @@ val type_has_hole : typ -> bool
 val ref_occurs_in : typ option ref -> typ -> bool
 val normalize_complete_type : typ -> typ
 val fv : exp -> Var.Set.t
+val normalize_expr : exp -> exp

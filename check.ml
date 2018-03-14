@@ -146,7 +146,7 @@ let rec shift_type tau depth shift =
       AllT (n, (shift_type t (depth+n) shift))
     | HoleT {contents = Some t} ->
       shift_type t depth shift
-    | HoleT {contents = None} -> got_hole "shift_type"
+    | HoleT {contents = None} as t -> t
 
 (* type_subst tau1 [a := tau]
    type_subst  tau1 [n := tau]
@@ -208,6 +208,45 @@ let () =
                               0
                               (AllT (1, ArrT ([VarT 1], VarT 0))))
                 (AllT (1, ArrT ([VarT 1], AllT (1, ArrT ([VarT 2], VarT 0)))))
+
+let rec shift_expr_types e depth shift = match e with
+  | VarE x -> VarE x
+  | LetE (bindings, body) ->
+      LetE (List.map bindings
+              ~f:(fun (x, e, t) ->
+                   x,
+                   shift_expr_types e depth shift,
+                   shift_type t depth shift),
+            shift_expr_types body depth shift)
+  | IntE n -> IntE n
+  | SubE (e1, e2) ->
+      SubE (shift_expr_types e1 depth shift,
+            shift_expr_types e2 depth shift)
+  | If0E (e1, e2, e3) ->
+      If0E (shift_expr_types e1 depth shift,
+            shift_expr_types e2 depth shift,
+            shift_expr_types e3 depth shift)
+  | TupE es ->
+      TupE (List.map ~f:(fun e -> shift_expr_types e depth shift) es)
+  | PrjE (e, ix) ->
+      PrjE (shift_expr_types e depth shift, ix)
+  | LamE (args, body) ->
+      LamE (List.map ~f:(fun (x, t) -> x, shift_type t depth shift) args,
+            shift_expr_types body depth shift)
+  | AppE (e0, es) ->
+      AppE (shift_expr_types e0 depth shift,
+            List.map ~f:(fun e -> shift_expr_types e depth shift) es)
+  | FixE (x, t, e) ->
+      FixE (x,
+            shift_type t depth shift,
+            shift_expr_types e depth shift)
+  | LAME (n, e) ->
+      LAME (n, shift_expr_types e (depth+n) shift)
+  | APPE (e, ts) ->
+      APPE (shift_expr_types e depth shift,
+            List.map ~f:(fun t -> shift_type t depth shift) ts)
+  | HoleE {contents = e} ->
+      HoleE (ref (shift_expr_types e depth shift))
 
 (* Kind checks a type in the given type environment *)
 (*
@@ -343,6 +382,9 @@ and tc_check (typevars_env , termvars_env as env) exp typ =
   | TupE(es), typ ->
       let ts = un_tup (List.length es) typ in
       List.iter2_exn ~f:(tc_check env) es ts
+  | HoleE ({contents = LamE _ as e} as r) as e0, AllT (n, _) ->
+      r := LAME (n, shift_expr_types e 0 n);
+      tc_check env e0 typ
   | LamE(xts, body), typ ->
       let (ts, tr) = un_arr (List.length xts) typ in
       List.iter2_exn xts ts
