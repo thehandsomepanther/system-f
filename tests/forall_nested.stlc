@@ -1,62 +1,78 @@
-;; This test is intended to check type variable substitution implementation
-;; to see if types are correctly implemented using de Bruijn indices.
+;; This test is intended to check the implementation of type variable substitution.
 
-;; We try to instantiate ∀ a b. a → b → A * B * a
+;; We try to instantiate ∀ a b. (a * b) → ∀ c. c → (A * b * a)
 ;; with a = ∀ t. t → A
 ;;      b = B
-;; in the context ∀ A. A → ∀ B. B → _.
+;; in the context ∀ A B. A B → _.
 ;;
-;; That is,
-;;   ∀ A. A → ∀ B. B → (a → b → (A * B * a))[a := (∀ t. t → A), b := B]
+;; That is, to be a bit hand wavy and using 'type application'-y notation,
+;;   ∀ A B. A B → (∀ a b. (a * b) → ∀ c. c → (A * b * a)) [∀ t. t → A] [B]
+;; or more formally
+;;   ∀ A B. A B → ((a * b) → ∀ c. c → (A * b * a)) [a := (∀ t. t → A), b := B]
 ;; The correct answer is
-;;   ∀ A. A → ∀ B. B → (∀ t. t → A) → B → A * B * (∀ t. t → A)
+;;   ∀ A B. A B → ((∀ t. t → A) * B) → ∀ c. c → (A * B * (∀ t. t → A))
 ;;
 ;; In de Bruijn indices, this is
-;;   ∀ _. 0 → ∀ _. 0 → (1 → 0 → (3 * 2 * 1))[1 := (∀ _. _ → 4), 0 := 2]
-;; = ∀ _. 0 → ∀ _. 0 → (∀ _. 0 → 2) → 1 → 2 * 1 * (∀ _. 0 → 2)
+;;   ∀ _ _. 1 0 → (∀ _ _. (1 * 0) → ∀ _. 0 → (4 * 1 * 2)) [∀ _. 0 → 2] [0]
+;; =   {- locally nameless-y open .. not quite though, because that '4'
+;;        should've been bound to a string instead of a number         -}
+;;   ∀ _ _. 1 0 → ((_a * _b) → ∀ _. 0 → (2 * _b * _a)) [_a := ∀ _. 0 → 2, _b := 0]
+;; =              {- substitution.       ^~~ Note: this is changed since "∀ _ _."
+;;                                           is removed from the type -}
+;;   ∀ _ _. 1 0 → ((∀ _. 0 → 2) * 0) → ∀ _. 0 → (2 * 1 * (∀ _. 0 → 3))
+;;                                                   ^~~  ^~~~~~~~~~
+;;   {- Note: these are changed since they are under an extra layer of "∀ _." -}
 
 ;; check the type of get-u
-(Lam (A)
-  (lam ((u A))
+(Lam (A B)
+  (lam ((u A) (w B))
     (let (;; get-u : ∀ t. t → A
-          (get-u (Lam (t) (lam ((y t)) u))))
-      (Lam (B)
-        (lam ((v B))
-          (let (;; fst-v : ∀ a b. a → b → A * B * b
-                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
-            get-u))))))
+          (get-u (Lam (t) (lam ((y t)) u)))
+          ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
+          (fst-v (Lam (a b)
+                   (lam ((p (* a b)))
+                     (Lam (c)
+                       (lam ((n c))
+                         (tup u (prj p 1) (prj p 0))))))))
+      get-u)))
 
 ;; check the type of fst-v
-(Lam (A)
-  (lam ((u A))
+(Lam (A B)
+  (lam ((u A) (w B))
     (let (;; get-u : ∀ t. t → A
-          (get-u (Lam (t) (lam ((y t)) u))))
-      (Lam (B)
-        (lam ((v B))
-          (let (;; fst-v : ∀ a b. a → b → A * B * b
-                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
-            fst-v))))))
+          (get-u (Lam (t) (lam ((y t)) u)))
+          ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
+          (fst-v (Lam (a b)
+                   (lam ((p (* a b)))
+                     (Lam (c)
+                       (lam ((n c))
+                         (tup u (prj p 1) (prj p 0))))))))
+      fst-v)))
 
 ;; check the type of an instantiation of fst-v
-(Lam (A)
-  (lam ((u A))
+(Lam (A B)
+  (lam ((u A) (w B))
     (let (;; get-u : ∀ t. t → A
-          (get-u (Lam (t) (lam ((y t)) u))))
-      (Lam (B)
-        (lam ((v B))
-          (let (;; fst-v : ∀ a b. a → b → A * B * b
-                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
-            (@ fst-v (all (s) (-> s A)) B)))))))
+          (get-u (Lam (t) (lam ((y t)) u)))
+          ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
+          (fst-v (Lam (a b)
+                   (lam ((p (* a b)))
+                     (Lam (c)
+                       (lam ((n c))
+                         (tup u (prj p 1) (prj p 0))))))))
+      (@ fst-v (all (s) (-> s A)) B))))
 
-;; the result should be the same of get-u
-(Lam (A)
-  (lam ((u A))
+;; instantiating c to be int
+(Lam (A B)
+  (lam ((u A) (w B))
     (let (;; get-u : ∀ t. t → A
-          (get-u (Lam (t) (lam ((y t)) u))))
-      (Lam (B)
-        (lam ((v B))
-          (let (;; fst-v : ∀ a b. a → b → A * B * b
-                (fst-v   (Lam (a b) (lam ((x a)) (lam ((y b)) (tup u v x))))))
-            (((@ fst-v (all (s) (-> s A)) B)
-              get-u)
-             v)))))))
+          (get-u (Lam (t) (lam ((y t)) u)))
+          ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
+          (fst-v (Lam (a b)
+                   (lam ((p (* a b)))
+                     (Lam (c)
+                       (lam ((n c))
+                         (tup u (prj p 1) (prj p 0))))))))
+      (@ ((@ fst-v (all (s) (-> s A)) B)
+          (tup get-u w))
+         int))))

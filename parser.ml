@@ -50,7 +50,7 @@ let rec type_of_sexp type_env = function
       (match List.rev (List.map ~f:(type_of_sexp type_env) args) with
        | last :: init -> ArrT(List.rev init, last)
        | [] -> stx_err "return type" t0)
-  | S.List (S.Atom "tup" :: args) ->
+  | S.List (S.Atom "*" :: args) ->
       TupT(List.map ~f:(type_of_sexp type_env) args)
   | S.List [S.Atom "all"; S.List new_type_vars; arg] ->
       let btv = List.map ~f:type_var_of_sexp new_type_vars in
