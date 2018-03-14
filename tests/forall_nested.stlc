@@ -29,11 +29,10 @@
     (let (;; get-u : ∀ t. t → A
           (get-u (Lam (t) (lam ((y t)) u)))
           ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
-          (fst-v (Lam (a b)
-                   (lam ((p (* a b)))
-                     (Lam (c)
-                       (lam ((n c))
-                         (tup u (prj p 1) (prj p 0))))))))
+          (fst-v (lam (p)
+                   (lam (n)
+                     (tup u (prj p 1) (prj p 0))))
+                 (all (a b) ((* a b) -> (all (c) (c -> (* A b a)))))))
       get-u)))
 
 ;; check the type of fst-v
@@ -42,11 +41,10 @@
     (let (;; get-u : ∀ t. t → A
           (get-u (Lam (t) (lam ((y t)) u)))
           ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
-          (fst-v (Lam (a b)
-                   (lam ((p (* a b)))
-                     (Lam (c)
-                       (lam ((n c))
-                         (tup u (prj p 1) (prj p 0))))))))
+          (fst-v (lam (p)
+                   (lam (n)
+                     (tup u (prj p 1) (prj p 0))))
+                 (all (a b) ((* a b) -> (all (c) (c -> (* A b a)))))))
       fst-v)))
 
 ;; check the type of an instantiation of fst-v
@@ -55,11 +53,10 @@
     (let (;; get-u : ∀ t. t → A
           (get-u (Lam (t) (lam ((y t)) u)))
           ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
-          (fst-v (Lam (a b)
-                   (lam ((p (* a b)))
-                     (Lam (c)
-                       (lam ((n c))
-                         (tup u (prj p 1) (prj p 0))))))))
+          (fst-v (lam (p)
+                   (lam (n)
+                     (tup u (prj p 1) (prj p 0))))
+                 (all (a b) ((* a b) -> (all (c) (c -> (* A b a)))))))
       (@ fst-v (all (s) (-> s A)) B))))
 
 ;; instantiating c to be int
@@ -68,11 +65,10 @@
     (let (;; get-u : ∀ t. t → A
           (get-u (Lam (t) (lam ((y t)) u)))
           ;; fst-v : ∀ a b. (a * b) → ∀ c. c → A * b * a
-          (fst-v (Lam (a b)
-                   (lam ((p (* a b)))
-                     (Lam (c)
-                       (lam ((n c))
-                         (tup u (prj p 1) (prj p 0))))))))
+          (fst-v (lam (p)
+                   (lam (n)
+                     (tup u (prj p 1) (prj p 0))))
+                 (all (a b) ((* a b) -> (all (c) (c -> (* A b a)))))))
       (@ ((@ fst-v (all (s) (-> s A)) B)
           (tup get-u w))
          int))))

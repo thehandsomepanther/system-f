@@ -8,4 +8,6 @@
 -> #<function>
 >  : (all (a) (-> a (all (a0) (-> (-> a a0) a0))))
 -> #<function>
+>  : (all (a) (-> a (all (a0) (-> (-> a a0) a0))))
+-> #<function>
 > 
