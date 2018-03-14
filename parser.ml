@@ -46,6 +46,9 @@ let rec type_of_sexp type_env = function
       (match (List.findi type_env ~f:(fun _ var -> x = var)) with
         | Some (ix, _) -> VarT ix
         | _ -> stx_err "bound type variable" (S.Atom x))
+  | S.List (S.Atom "->" :: args)
+      when List.exists ~f:(fun t -> t = S.Atom "->") args ->
+        ArrT ([], type_of_sexp type_env (S.List args))
   | S.List (S.Atom "->" :: args) as t0 ->
       (match List.rev (List.map ~f:(type_of_sexp type_env) args) with
        | last :: init -> ArrT(List.rev init, last)
@@ -57,6 +60,20 @@ let rec type_of_sexp type_env = function
       AllT (List.length btv,
             type_of_sexp ((List.rev btv) @ type_env)
                          arg)
+  | S.List ((t0 :: _) as ts0) as s when t0 <> S.Atom "->" ->
+      (match List.group ts0 ~break:(fun _ after -> after = S.Atom "->") with
+        (* ["a"; "b"; "->"; "c"; "d"; "->"; "f"] becomes
+           [["a" "b"]; ["->"; "c"; "d"]; ["->"; "f"]] *)
+        | ts1 :: ((_ :: _) as tss0) ->
+            (match List.rev (List.map ~f:List.tl_exn tss0) with
+              | (tr :: []) :: tss ->
+                  List.fold_right (ts1 :: List.rev tss)
+                    ~f:(fun ts trest ->
+                         ArrT (List.map ~f:(type_of_sexp type_env) ts,
+                               trest))
+                    ~init:(type_of_sexp type_env tr)
+              | _ -> failwith ("could not parse type: " ^ S.to_string s))
+        | _ -> failwith ("could not parse type: " ^ S.to_string s))
   | s -> failwith ("could not parse type: " ^ S.to_string s)
 
 (* Parses a type from a string, via an s-expression. *)
@@ -71,6 +88,34 @@ let () =
   check_equal_t ~name:"type_of_sexp; all(c d). all(a b). a -> c"
     (fun () -> type_of_string "(all (c d) (all (a b) (-> a c)))")
     (AllT (2, AllT (2, ArrT ([VarT 1], VarT 3))))
+
+let () =
+  check_equal_t ~name:"type_of_sexp: (-> int)"
+    (fun () -> type_of_string "(-> int)")
+    (ArrT ([], IntT))
+
+let () =
+  check_equal_t ~name:"type_of_sexp: (int -> int)"
+    (fun () -> type_of_string "(-> int)")
+    (ArrT ([], IntT))
+
+let () =
+  check_equal_t ~name:"type_of_sexp: (-> -> -> int)"
+    (fun () -> type_of_string "(-> -> -> int)")
+    (ArrT ([], ArrT ([], (ArrT ([], IntT)))))
+
+let () =
+  check_equal_t ~name: "type_of_sexp: (-> int int -> int)"
+    (fun () -> type_of_string "(-> int int -> int)")
+    (ArrT ([], ArrT ([IntT; IntT], IntT)))
+
+let () =
+  check_equal_t ~name:"type_of_sexp: (int int -> (* int int) (int -> int) -> int -> int)"
+    (fun () -> type_of_string "(int int -> (* int int) (int -> int) -> int -> int)")
+    (ArrT ([IntT; IntT],
+      ArrT ([TupT [IntT; IntT]; ArrT ([IntT], IntT)],
+        ArrT ([IntT],
+          IntT))))
 
 (* Parses a bindings of a variable to a thing, given a function for
  * parsing the thing. *)
