@@ -37,3 +37,34 @@
 (let ((ap (lam (x) (lam (f) (f x)))
           (all (a) (a -> (all (b) ((a -> b) -> b))))))
   ((ap 5) (lam ((r int)) (Lam (a) (lam ((t a)) r)))))
+
+;; ok
+;; inst_all should handle the indices correctly
+;;     m               : ∀ _. (1 → 0) → 0
+;;     (lam ((x a)) x) : 1 → 1 at the call-site of m
+(Lam (a)
+  (lam ((m (all (r) ((a -> r) -> r))))
+    (m (lam ((x a)) x))))
+
+;; just more layers
+(Lam (a)
+  (lam ((m (all (r) ((a -> r) -> r))))
+    (Lam (c d)
+      (m (lam ((x a)) x)))))
+
+;; ditto; just more type variables
+(Lam (a b c)
+  (lam ((m (all (r) (((* a b) -> r) -> r))))
+    (m (lam ((x (* a b))) x))))
+
+;; using let shouldn't change anything
+(Lam (a)
+  (let ((id (lam ((x a)) x)))
+    (lam ((m (all (r) ((a -> r) -> r))))
+      (Lam (c d)
+        (m id)))))
+(Lam (a)
+  (lam ((m (all (r) ((a -> r) -> r))))
+    (Lam (c d)
+      (let ((id (lam ((x a)) x)))
+        (m id)))))

@@ -120,8 +120,10 @@ let rec inst_all holes n = function
   | VarT m ->
       if m < n
       then VarT(m)
-      else List.nth_exn holes (m - n)
-  | AllT (m, t) -> AllT(n, inst_all holes (n + m) t)
+      else if m-n < List.length holes
+           then List.nth_exn holes (m - n)
+           else VarT(m - List.length holes)
+  | AllT (m, t) -> AllT(m, inst_all holes (n + m) t)
   | HoleT {contents = Some t} -> inst_all holes n t
   | HoleT {contents = None} -> got_hole "inst_all"
 

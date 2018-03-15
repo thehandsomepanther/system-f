@@ -10,4 +10,14 @@
 -> #<function>
 > >  : (all (a) (-> a int))
 -> #<function>
+>  : (all (a) (-> (all (a0) (-> (-> a a0) a0)) a))
+-> #<function>
+>  : (all (a) (-> (all (a0) (-> (-> a a0) a0)) (all (a0 b) a)))
+-> #<function>
+>  : (all (a b c) (-> (all (a0) (-> (-> (* a b) a0) a0)) (* a b)))
+-> #<function>
+>  : (all (a) (-> (all (a0) (-> (-> a a0) a0)) (all (a0 b) a)))
+-> #<function>
+>  : (all (a) (-> (all (a0) (-> (-> a a0) a0)) (all (a0 b) a)))
+-> #<function>
 > 
