@@ -1,44 +1,26 @@
-# STLC Interpreter
+# System-F with bidirectional type inference
 
-This directory contains an interpreter and type checker for the
-simply-typed λ calculus, written in OCaml.
+This project implements System-F with bidirectional type inference and type application synthesis as described in Pierce and Turner's *Local Type Inference*. Our system can handle the following cases:
 
-## Installation
+- omit type annotations on lambda functions when they are at the argument position in some function application
+- when applying a function of type `(all (a) (t1 -> t2))`, we will try to infer the type of arguments, then use the type of arguments to determine what `a` should be instantiated to and insert the corresponding type application
+- when checking a lambda term against a universal type, we automatically insert type abstraction
 
-First install OPAM, the OCaml package manager; this will install OCaml.
-On Linux and OS X, there are [binary distributions][OPAM] available, and
-it should be easy. Windows is a bit harder because it isn't directly
-supported by OPAM, but you can [install via Cygwin][OPAM-Cygwin], which
-sets up a Linux environment on Windows.
+## Syntax
 
-Then, use OPAM to install the Core libraries:
+- `(Lam (x1 x2 ... xn) e)` means `Λx1x2…xn.e`,
+- `(@ e t1 t2 ... tn)` means `e[t1][t2]…[tn]` and
+- `(all (a1 a2 ... an) t)` means `∀a1a2…an.t`.
 
-<pre>
-$ opam install core
-</pre>
+## Tests
 
-Once OPAM and Core are installed, it should be possible to build in this
-directory by running make:
+These features are demonstrated in the following tests:
 
-<pre>
-$ make
-</pre>
+- `tests/forall_annotated.stlc`: basics of System-F
+- `tests/forall_bidir.stlc`: shows that we can omit type annotations on lambda functions
+- `tests/application.stlc`: shows that we can omit type applications when they can be inferred
+- `tests/forall_nested.stlc`: shows that we correctly implement types using De Bruijn indices
 
-## Running
-
-Run
-
-<pre>
-$ make test
-</pre>
-
-to run automated tests, or
-
-<pre>
-$ ./main.byte
-</pre>
-
-to get a REPL. See examples in the `tests/` subdirectory.
 
 ## Testing in REPL
 
