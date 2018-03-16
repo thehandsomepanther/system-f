@@ -352,8 +352,7 @@ and tc_infer (typevars_env , termvars_env as env) = function
       kc typevars_env t;
       assert_arr t;
       let termvars_env' = Env.extend termvars_env x t in
-      let t'   = tc_infer (typevars_env , termvars_env') e in
-      assert_same_type t t';
+      tc_check (typevars_env , termvars_env') e t;
       t
   | LAME (n, e) ->
       let termvars_env' =

@@ -67,7 +67,8 @@ let rec eval env = function
             let env = Env.extend_lists env xs vs in
               eval env body
          | _ -> raise (Can't_happen "closure expected"))
-  | FixE(x, (ArrT(ts, _) as t), e) ->
+  | FixE(x, (ArrT(ts, _) as t), e)
+  | FixE(x, HoleT {contents = Some (ArrT(ts, _) as t)}, e) ->
       (*
         Fix runs by evaluating the body in an environment where x
         is extended with the definition of the fix itself.

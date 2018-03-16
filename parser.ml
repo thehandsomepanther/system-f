@@ -22,7 +22,7 @@ exception Bad_syntax of string * S.t
 let stx_err exp got = raise (Bad_syntax(exp, got))
 
 (* Keywords, which cannot be identifiers. *)
-let keywords = ["let"; "let*"; "-"; "if0"; "tup"; "prj"; "lam"; "fix"; "int"]
+let keywords = ["let"; "let*"; "-"; "if0"; "tup"; "prj"; "lam"; "fix"; "int"; "Lam"; "@"; "all"]
 
 (* Is the given string a keyword? *)
 let is_keyword = List.mem ~equal:(=) keywords

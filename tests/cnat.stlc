@@ -1,0 +1,36 @@
+;; check that fix propagates the type information inside
+(let ((int->nat2 (fix f _
+                   (lam (count-from)
+                     (lam (s z)
+                       (if0 count-from
+                         z
+                         (s ((f (- count-from 1)) s z))))))
+                 (int -> (all (a) ((a -> a) a -> a)))))
+  int->nat2)
+
+;; ditto
+(let ((+ (lam (n m) (- n (- 0 m)))
+         (int int -> int))
+      (int->nat1 (lam (n)
+                   (Lam (a)
+                     ((fix f (int -> (a -> a) a -> a)
+                        (lam (count-from)
+                          (lam (s z)
+                            (if0 count-from
+                              z
+                              (s ((f (- count-from 1)) s z))))))
+                      n)))
+                 (int -> (all (a) ((a -> a) a -> a))))
+      (int->nat2 (fix f _
+                   (lam (count-from)
+                     (lam (s z)
+                       (if0 count-from
+                         z
+                         (s ((f (- count-from 1)) s z))))))
+                 (int -> (all (a) ((a -> a) a -> a)))))
+  (+ ((int->nat1 5)
+      (lam ((acc int)) (+ acc 100))
+      3)
+     ((int->nat2 2)
+      (lam ((acc int)) (+ acc 10))
+      4)))
