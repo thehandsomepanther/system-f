@@ -184,8 +184,6 @@ let rec expr_of_sexp type_env sexp0 =
       | [S.Atom "fix"; S.Atom x; t; e] ->
           assert_not_keyword x;
           FixE(x, type_of_sexp type_env t, expr_of_sexp type_env e)
-      | S.Atom op :: _ when is_keyword op ->
-          stx_err op sexp0
       | [S.Atom "Lam"; S.List new_type_vars; body] ->
           let btv = List.map ~f:type_var_of_sexp new_type_vars in
           LAME(List.length btv,
@@ -193,6 +191,8 @@ let rec expr_of_sexp type_env sexp0 =
                             body)
       | S.Atom "@" :: e :: ts ->
           APPE(expr_of_sexp type_env e, List.map ~f:(type_of_sexp type_env) ts)
+      | S.Atom op :: _ when is_keyword op ->
+          stx_err op sexp0
       | e0 :: es ->
           AppE(HoleE(ref (expr_of_sexp type_env e0)), List.map ~f:(expr_of_sexp type_env) es)
 
